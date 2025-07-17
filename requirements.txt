@@ -8,3 +8,5 @@ sqlite-vec>=0.1.1
 tqdm>=4.65.0
 sentencepiece==0.1.99 
 timm
+requests>=2.28.0
+google-cloud-logging>=3.8.0

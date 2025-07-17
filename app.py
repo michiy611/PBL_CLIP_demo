@@ -24,7 +24,7 @@ try:
         get_database_stats,
         check_database_exists
     )
-    from search_logger import search_logger
+    from cloud_logger import search_logger
 except ImportError as e:
     st.error(f"データベースモジュールの読み込みエラー: {e}")
     st.stop()
@@ -226,7 +226,7 @@ def search_page():
         st.markdown("### 📊 検索統計")
         
         try:
-            stats = search_logger.get_search_statistics()
+            stats = search_logger.get_search_statistics_from_fallback()
             
             col1, col2, col3, col4 = st.columns(4)
             with col1:
