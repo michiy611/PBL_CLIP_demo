@@ -69,6 +69,16 @@ st.markdown("""
     font-size: 0.8rem;
     margin-right: 0.5rem;
 }
+.debug-box {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    padding: 0.5rem;
+    font-family: monospace;
+    font-size: 0.8rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -281,6 +291,89 @@ def main():
     st.sidebar.markdown("### 📈 検索統計")
     st.sidebar.metric("総検索回数", search_logger.get_session_count())
     st.sidebar.metric("評価済み", search_logger.get_feedback_count())
+    
+    # デバッグ情報をサイドバーに表示
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🔧 デバッグ情報")
+    
+    # デバッグ情報の表示/非表示切り替え
+    show_debug = st.sidebar.checkbox("デバッグ情報を表示", value=False)
+    
+    if show_debug:
+        debug_info = search_logger.get_debug_info()
+        if debug_info:
+            # 最新の10件のみ表示
+            recent_debug = debug_info[-10:] if len(debug_info) > 10 else debug_info
+            debug_text = "\n".join(recent_debug)
+            st.sidebar.markdown(f'<div class="debug-box">{debug_text}</div>', unsafe_allow_html=True)
+        else:
+            st.sidebar.text("デバッグ情報はありません")
+    
+    # Google Sheets 接続状態の表示
+    if search_logger.worksheet:
+        st.sidebar.success("✅ Google Sheets 接続済み")
+    else:
+        st.sidebar.error("❌ Google Sheets 未接続")
+    
+    # Streamlit secrets の確認
+    if hasattr(st, 'secrets') and 'gcp_service_account' in st.secrets:
+        st.sidebar.success("✅ Streamlit Secrets 設定済み")
+    else:
+        st.sidebar.warning("⚠️ Streamlit Secrets 未設定")
+    
+    # 接続テストボタン
+    if st.sidebar.button("🔗 Google Sheets 接続テスト"):
+        with st.sidebar:
+            with st.spinner("接続テスト中..."):
+                test_result = search_logger.test_connection()
+                
+                st.subheader("接続テスト結果")
+                
+                # ライブラリの確認
+                if test_result['libraries_available']:
+                    st.success("✅ Google Sheets ライブラリ利用可能")
+                else:
+                    st.error("❌ Google Sheets ライブラリが利用できません")
+                
+                # シークレットの確認
+                if test_result['secrets_found']:
+                    st.success("✅ Streamlit Secrets 発見")
+                else:
+                    st.error("❌ Streamlit Secrets が見つかりません")
+                
+                # 認証の確認
+                if test_result['credentials_valid']:
+                    st.success("✅ 認証情報 有効")
+                else:
+                    st.error("❌ 認証情報 無効")
+                
+                # クライアント認証
+                if test_result['client_authorized']:
+                    st.success("✅ Google Sheets クライアント認証 成功")
+                else:
+                    st.error("❌ Google Sheets クライアント認証 失敗")
+                
+                # スプレッドシートアクセス
+                if test_result['spreadsheet_accessible']:
+                    st.success("✅ スプレッドシート アクセス可能")
+                else:
+                    st.error("❌ スプレッドシート アクセス不可")
+                
+                # ワークシートアクセス
+                if test_result['worksheet_accessible']:
+                    st.success("✅ ワークシート アクセス可能")
+                else:
+                    st.error("❌ ワークシート アクセス不可")
+                
+                # 書き込みテスト
+                if test_result['can_write']:
+                    st.success("✅ 書き込みテスト 成功")
+                else:
+                    st.error("❌ 書き込みテスト 失敗")
+                
+                # エラーメッセージ
+                if test_result['error_message']:
+                    st.error(f"エラー詳細: {test_result['error_message']}")
     
     # ページ切り替え
     if page == "🔍 画像検索":
