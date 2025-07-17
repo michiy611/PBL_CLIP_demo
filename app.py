@@ -141,7 +141,7 @@ def search_page():
     with col1:
         search_query = st.text_input(
             "検索クエリを入力してください",
-            placeholder="例: 黒い傘、赤いバッグ、スマートフォン..."
+            placeholder="例: 赤いバッグ、グレーの折り畳み傘..."
         )
     
     with col2:
@@ -393,7 +393,7 @@ def main():
     st.markdown("---")
     st.markdown(
         '<div style="text-align: center; color: #666; font-size: 0.9rem;">'
-        'CLIP画像検索デモアプリケーション | Powered by Streamlit & CLIP-Japanese'
+        '画像検索デモアプリケーション'
         '</div>',
         unsafe_allow_html=True
     )
