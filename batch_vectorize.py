@@ -14,8 +14,8 @@ from database_setup import DB_PATH, setup_database
 import sys
 
 # データディレクトリのパス
-DATA_IMG_DIR = "./data/img"
-DATA_LABEL_DIR = "./data/label"
+DATA_IMG_DIR = "data/img"
+DATA_LABEL_DIR = "data/label"
 
 # カテゴリ名
 CATEGORIES = ["カサ", "サイフ", "スマホ", "タオル", "バッグ"]
