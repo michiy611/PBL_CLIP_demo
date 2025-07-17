@@ -95,7 +95,10 @@ def display_image_safely(image_path, caption="", width=None):
             image = Image.open(image_path)
             st.image(image, caption=caption, width=width)
         else:
-            st.error(f"画像ファイルが見つかりません: {image_path}")
+            st.warning(f"画像ファイルが見つかりません: {caption}")
+            # プレースホルダー表示
+            st.markdown(f"**{caption}**")
+            st.info("画像は GitHub LFS からダウンロード中...")
     except Exception as e:
         st.error(f"画像表示エラー: {str(e)}")
 
@@ -231,6 +234,72 @@ def gallery_page():
                         with cols[j]:
                             display_image_safely(file_path, caption=f"{filename}\n{description}")
 
+def setup_page():
+    """セットアップページ"""
+    st.markdown('<h1 class="main-header">⚙️ セットアップガイド</h1>', unsafe_allow_html=True)
+    
+    try:
+        from image_utils import show_gdrive_setup_guide
+        show_gdrive_setup_guide()
+    except ImportError:
+        st.info("image_utils.py が見つかりません")
+    
+    st.markdown("---")
+    
+    st.markdown("""
+    ## 🔧 画像表示の解決策
+    
+    現在、画像ファイルが見つからない状態です。以下の方法で解決できます：
+    
+    ### 1. GitHub LFS (推奨)
+    ```bash
+    # Git LFS をインストール
+    git lfs install
+    
+    # 画像ファイルを追加
+    git add data/img/
+    git commit -m "Add images with LFS"
+    git push origin main
+    ```
+    
+    ### 2. Google Drive
+    1. 画像をGoogle Driveにアップロード
+    2. 各ファイルの共有リンクを取得
+    3. `image_utils.py` の `GDRIVE_IMAGE_MAP` を更新
+    
+    ### 3. サンプル画像
+    デモ用に数枚の画像のみ配置
+    
+    ---
+    
+    ### 📊 現在の状況
+    """)
+    
+    # 統計情報表示
+    try:
+        stats = get_database_stats()
+        st.success(f"✅ データベース: {stats['total_images']}件の画像データあり")
+        for category, count in stats['category_counts'].items():
+            st.info(f"📁 {category}: {count}件")
+    except Exception as e:
+        st.error(f"❌ データベースエラー: {e}")
+    
+    # 画像ファイル確認
+    import os
+    if os.path.exists("data/img"):
+        files = []
+        for root, dirs, filenames in os.walk("data/img"):
+            for filename in filenames:
+                if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                    files.append(os.path.join(root, filename))
+        
+        if files:
+            st.success(f"✅ ローカル画像: {len(files)}件見つかりました")
+        else:
+            st.warning("⚠️ ローカル画像ファイルが見つかりません")
+    else:
+        st.warning("⚠️ data/img フォルダが存在しません")
+
 def main():
     """メイン処理"""
     # セットアップ確認
@@ -240,7 +309,7 @@ def main():
     st.sidebar.title("🎯 ナビゲーション")
     page = st.sidebar.radio(
         "ページを選択",
-        ["🔍 画像検索", "🖼️ ギャラリー"],
+        ["🔍 画像検索", "🖼️ ギャラリー", "⚙️ セットアップ"],
         index=0
     )
     
@@ -263,6 +332,8 @@ def main():
         search_page()
     elif page == "🖼️ ギャラリー":
         gallery_page()
+    elif page == "⚙️ セットアップ":
+        setup_page()
     
     # フッター
     st.markdown("---")
