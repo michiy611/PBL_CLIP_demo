@@ -103,12 +103,12 @@ def display_image_safely(image_path, caption="", width=None):
                 st.info(f"🔍 存在チェック: `{os.path.exists(image_path)}`")
                 return
         
-        image = Image.open(image_path)
+        # image = Image.open(image_path)
         # 大きな画像のリサイズ（メモリ節約）
-        if width and width < 300:
+        # if width and width < 300:
             # サムネイル表示の場合はリサイズ
-            image.thumbnail((width * 2, width * 2), Image.Resampling.LANCZOS)
-        st.image(image, caption=caption, width=width)
+            # image.thumbnail((width * 2, width * 2), Image.Resampling.LANCZOS)
+        st.image(image_path, caption=caption, width=(width * 2, width * 2))
         
     except Exception as e:
         st.error(f"❌ 画像表示エラー: {str(e)}")
