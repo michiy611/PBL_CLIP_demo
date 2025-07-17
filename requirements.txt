@@ -7,3 +7,4 @@ numpy>=1.24.0
 sqlite-vec>=0.1.1
 tqdm>=4.65.0
 sentencepiece==0.1.99 
+timm
