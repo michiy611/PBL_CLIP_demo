@@ -162,11 +162,15 @@ def search_page():
                 if results:
                     # 検索をログに記録
                     session_id = search_logger.log_search_query(search_query, results)
+                    print(f"APP_DEBUG: Search logged with session ID: {session_id}")
                     
                     # セッションステートに保存
                     st.session_state['current_search_session'] = session_id
                     st.session_state['search_results'] = results
                     st.session_state['search_query'] = search_query
+                    
+                    print(f"APP_DEBUG: Session state updated - current session: {session_id}")
+                    print(f"APP_DEBUG: Results count: {len(results)}")
                     
                     st.success(f"✅ 上位10件の結果を表示")
                     
@@ -190,11 +194,19 @@ def search_page():
                             with col3:
                                 # 正解ボタン
                                 if st.button(f"✅ 正解", key=f"correct_{i}", type="secondary"):
-                                    st.info(f"正解ボタンが押されました: 第{i+1}位")
-                                    with st.spinner("Google Sheetsに記録中..."):
-                                        search_logger.log_user_feedback(session_id, i + 1)
-                                    st.success(f"第{i+1}位を正解として記録しました！")
-                                    st.rerun()
+                                    print(f"APP_DEBUG: Correct button clicked for rank {i+1}")
+                                    print(f"APP_DEBUG: Current session from state: {st.session_state.get('current_search_session', 'NOT_FOUND')}")
+                                    current_session = st.session_state.get('current_search_session')
+                                    if current_session:
+                                        st.info(f"正解ボタンが押されました: 第{i+1}位")
+                                        print(f"APP_DEBUG: Calling log_user_feedback with session: {current_session}, rank: {i+1}")
+                                        with st.spinner("Google Sheetsに記録中..."):
+                                            search_logger.log_user_feedback(current_session, i + 1)
+                                        st.success(f"第{i+1}位を正解として記録しました！")
+                                        st.rerun()
+                                    else:
+                                        print(f"APP_DEBUG: No current session found in state!")
+                                        st.error("セッション情報が見つかりません")
                             
                             st.markdown('</div>', unsafe_allow_html=True)
                     
@@ -203,11 +215,19 @@ def search_page():
                     col1, col2, col3 = st.columns([1, 1, 1])
                     with col2:
                         if st.button("❌ 正解なし", type="secondary", use_container_width=True):
-                            st.info("「正解なし」ボタンが押されました")
-                            with st.spinner("Google Sheetsに記録中..."):
-                                search_logger.log_user_feedback(session_id, None)
-                            st.info("「正解なし」として記録しました。")
-                            st.rerun()
+                            print(f"APP_DEBUG: No correct answer button clicked")
+                            print(f"APP_DEBUG: Current session from state: {st.session_state.get('current_search_session', 'NOT_FOUND')}")
+                            current_session = st.session_state.get('current_search_session')
+                            if current_session:
+                                st.info("「正解なし」ボタンが押されました")
+                                print(f"APP_DEBUG: Calling log_user_feedback with session: {current_session}, rank: None")
+                                with st.spinner("Google Sheetsに記録中..."):
+                                    search_logger.log_user_feedback(current_session, None)
+                                st.info("「正解なし」として記録しました。")
+                                st.rerun()
+                            else:
+                                print(f"APP_DEBUG: No current session found in state!")
+                                st.error("セッション情報が見つかりません")
                     
                 else:
                     st.warning("⚠️ 検索結果が見つかりませんでした")
@@ -295,6 +315,22 @@ def main():
     st.sidebar.markdown("### 📈 検索統計")
     st.sidebar.metric("総検索回数", search_logger.get_session_count())
     st.sidebar.metric("評価済み", search_logger.get_feedback_count())
+    
+    # セッション情報をサイドバーに表示（デバッグ用）
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🔍 セッション情報")
+    current_session = st.session_state.get('current_search_session', None)
+    if current_session:
+        st.sidebar.success(f"アクティブセッション: {current_session[-8:]}")  # 最後の8文字を表示
+        current_query = st.session_state.get('search_query', 'Unknown')
+        st.sidebar.text(f"クエリ: {current_query}")
+    else:
+        st.sidebar.info("アクティブセッションなし")
+    
+    # 全セッション情報（デバッグ用）
+    total_sessions = search_logger.get_session_count()
+    if total_sessions > 0:
+        st.sidebar.text(f"キャッシュ内セッション数: {total_sessions}")
     
     # デバッグ情報をサイドバーに表示
     st.sidebar.markdown("---")

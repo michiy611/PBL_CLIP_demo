@@ -14,27 +14,38 @@ try:
     import gspread
     from google.oauth2.service_account import Credentials
     SHEETS_AVAILABLE = True
-except ImportError:
+    print(f"SHEETS_LOGGER: Successfully imported gspread and google.oauth2")
+except ImportError as e:
     SHEETS_AVAILABLE = False
+    print(f"SHEETS_LOGGER: Failed to import Google Sheets libraries: {e}")
+    print(f"SHEETS_LOGGER: Import error details: {str(e)}")
+except Exception as e:
+    SHEETS_AVAILABLE = False
+    print(f"SHEETS_LOGGER: Unexpected error during import: {e}")
 
 class SheetsLogger:
     def __init__(self):
+        print(f"SHEETS_LOGGER: Initializing SheetsLogger...")
         self.fallback_logs = []
         self.gc = None
         self.worksheet = None
         self.session_cache = {}
         self.debug_info = []
         
+        print(f"SHEETS_LOGGER: Initial setup complete")
         self._add_debug("📊 SheetsLogger initialized")
         
         if SHEETS_AVAILABLE:
+            print(f"SHEETS_LOGGER: Google Sheets libraries are available")
             self._add_debug("✅ Google Sheets libraries available")
             try:
                 self._init_sheets()
             except Exception as e:
+                print(f"SHEETS_LOGGER: Initialization failed with error: {str(e)}")
                 self._add_debug(f"❌ Sheets initialization failed: {e}")
                 st.warning(f"Sheets initialization failed: {e}")
         else:
+            print(f"SHEETS_LOGGER: Google Sheets libraries NOT available")
             self._add_debug("❌ Google Sheets libraries not available")
     
     def _add_debug(self, message: str):
@@ -42,7 +53,16 @@ class SheetsLogger:
         timestamp = datetime.now().strftime("%H:%M:%S")
         debug_msg = f"[{timestamp}] {message}"
         self.debug_info.append(debug_msg)
-        print(debug_msg)  # Console output for debugging
+        
+        # 標準出力に出力（Streamlit Cloudのログで確認可能）
+        print(f"SHEETS_LOGGER: {debug_msg}")
+        
+        # コンソール出力もする
+        try:
+            import sys
+            sys.stdout.flush()
+        except:
+            pass
     
     def get_debug_info(self) -> List[str]:
         """Get all debug information"""
@@ -166,6 +186,11 @@ class SheetsLogger:
         session_id = f"search_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
         timestamp = datetime.now().isoformat()
         
+        print(f"SHEETS_LOGGER: === Creating new search session ===")
+        print(f"SHEETS_LOGGER: Generated session ID: {session_id}")
+        print(f"SHEETS_LOGGER: Query: {query}")
+        print(f"SHEETS_LOGGER: Results count: {len(results)}")
+        
         self._add_debug(f"🔍 Logging search query: '{query}' (Session: {session_id})")
         
         # Session cache for feedback
@@ -176,21 +201,34 @@ class SheetsLogger:
             'correct_rank': None
         }
         
+        print(f"SHEETS_LOGGER: Session cached successfully")
+        print(f"SHEETS_LOGGER: Total sessions in cache: {len(self.session_cache)}")
+        print(f"SHEETS_LOGGER: Session cache keys: {list(self.session_cache.keys())}")
+        
         self._add_debug(f"📝 Session cached. Total sessions: {len(self.session_cache)}")
         
         return session_id
     
     def log_user_feedback(self, session_id: str, correct_rank: Optional[int]):
         """Log user feedback (correct rank or None for no correct answer)"""
+        print(f"SHEETS_LOGGER: === Starting log_user_feedback ===")
+        print(f"SHEETS_LOGGER: Session ID: {session_id}")
+        print(f"SHEETS_LOGGER: Correct rank: {correct_rank}")
+        
         self._add_debug(f"👤 Logging feedback for session: {session_id}, rank: {correct_rank}")
         
         if session_id not in self.session_cache:
             self._add_debug(f"❌ Session not found in cache: {session_id}")
+            print(f"SHEETS_LOGGER: Available sessions: {list(self.session_cache.keys())}")
             st.error("Session not found")
             return
         
         session_data = self.session_cache[session_id]
         session_data['correct_rank'] = correct_rank
+        
+        print(f"SHEETS_LOGGER: Session data retrieved successfully")
+        print(f"SHEETS_LOGGER: Query: {session_data['query']}")
+        print(f"SHEETS_LOGGER: Results count: {len(session_data['results'])}")
         
         self._add_debug(f"📊 Preparing data for Google Sheets...")
         
@@ -214,58 +252,88 @@ class SheetsLogger:
             else:
                 row_data.extend(["", "", ""])
         
+        print(f"SHEETS_LOGGER: Row data prepared with {len(row_data)} columns")
+        print(f"SHEETS_LOGGER: Row data sample: {row_data[:6]}...")  # Show first 6 elements
+        
         # Try to write to Google Sheets with fresh connection
         try:
             self._add_debug("📤 Creating fresh connection for reliable write...")
+            print(f"SHEETS_LOGGER: Attempting fresh connection...")
             
             # Create fresh connection (same as test_connection)
             if hasattr(st, 'secrets') and 'gcp_service_account' in st.secrets:
+                print(f"SHEETS_LOGGER: Secrets found, creating credentials...")
                 credentials_info = dict(st.secrets["gcp_service_account"])
                 scope = [
                     'https://spreadsheets.google.com/feeds',
                     'https://www.googleapis.com/auth/drive'
                 ]
                 credentials = Credentials.from_service_account_info(credentials_info, scopes=scope)
+                print(f"SHEETS_LOGGER: Credentials created successfully")
+                
                 gc = gspread.authorize(credentials)
+                print(f"SHEETS_LOGGER: Client authorized successfully")
                 
                 # Access spreadsheet and worksheet
                 spreadsheet_name = "CLIP Search Logs"
+                print(f"SHEETS_LOGGER: Accessing spreadsheet: {spreadsheet_name}")
                 spreadsheet = gc.open(spreadsheet_name)
+                print(f"SHEETS_LOGGER: Spreadsheet opened successfully")
+                
                 worksheet = spreadsheet.worksheet("Search Logs")
+                print(f"SHEETS_LOGGER: Worksheet accessed successfully")
                 
                 self._add_debug("✅ Fresh connection established")
                 
                 # Write data
                 self._add_debug(f"📤 Writing row with {len(row_data)} columns...")
+                print(f"SHEETS_LOGGER: About to write to worksheet...")
+                print(f"SHEETS_LOGGER: Full row data: {row_data}")
+                
                 worksheet.append_row(row_data)
+                print(f"SHEETS_LOGGER: Row written successfully!")
                 
                 self._add_debug("✅ Successfully logged to Google Sheets!")
                 st.success("✅ Logged to Google Sheets")
                 
             else:
                 self._add_debug("❌ No secrets available for fresh connection")
+                print(f"SHEETS_LOGGER: Secrets not found - hasattr: {hasattr(st, 'secrets')}")
+                if hasattr(st, 'secrets'):
+                    print(f"SHEETS_LOGGER: Available secret keys: {list(st.secrets.keys())}")
                 raise Exception("Streamlit secrets not available")
                 
         except Exception as e:
+            print(f"SHEETS_LOGGER: Fresh connection write failed with error: {str(e)}")
+            print(f"SHEETS_LOGGER: Error type: {type(e).__name__}")
+            import traceback
+            print(f"SHEETS_LOGGER: Full traceback: {traceback.format_exc()}")
+            
             self._add_debug(f"❌ Fresh connection write failed: {e}")
             
             # Fallback: try original self.worksheet
             if self.worksheet:
                 try:
                     self._add_debug("📤 Trying fallback to self.worksheet...")
+                    print(f"SHEETS_LOGGER: Trying fallback to self.worksheet...")
                     self.worksheet.append_row(row_data)
+                    print(f"SHEETS_LOGGER: Fallback write successful!")
                     self._add_debug("✅ Fallback write successful!")
                     st.success("✅ Logged to Google Sheets (fallback)")
                 except Exception as e2:
+                    print(f"SHEETS_LOGGER: Fallback write also failed: {str(e2)}")
                     self._add_debug(f"❌ Fallback write also failed: {e2}")
                     st.error(f"Sheets logging error: {e2}")
                     # Store in fallback logs
                     self._store_fallback_log(session_data, correct_rank, results)
             else:
+                print(f"SHEETS_LOGGER: No self.worksheet available for fallback")
                 self._add_debug("❌ No worksheet available for fallback")
                 st.error(f"Sheets logging error: {e}")
                 # Store in fallback logs
                 self._store_fallback_log(session_data, correct_rank, results)
+        
+        print(f"SHEETS_LOGGER: === Completed log_user_feedback ===")
     
     def get_session_count(self) -> int:
         """Get total session count"""
@@ -433,6 +501,7 @@ class SheetsLogger:
 
     def _store_fallback_log(self, session_data: dict, correct_rank: Optional[int], results: List):
         """Store log data in fallback storage"""
+        print(f"SHEETS_LOGGER: Storing to fallback logs...")
         self.fallback_logs.append({
             'timestamp': session_data['timestamp'],
             'session_id': session_data.get('session_id', 'unknown'),
@@ -442,6 +511,7 @@ class SheetsLogger:
         })
         self._add_debug(f"📁 Logged to fallback storage. Total fallback logs: {len(self.fallback_logs)}")
         st.info("📝 Logged locally (Sheets unavailable)")
+        print(f"SHEETS_LOGGER: Fallback storage complete. Total: {len(self.fallback_logs)}")
 
 # グローバルインスタンス
 search_logger = SheetsLogger() 
