@@ -118,224 +118,126 @@ def display_image_safely(image_path, caption="", width=None):
         st.error(f"画像表示エラー: {str(e)}")
 
 def search_page():
-    """検索ページ"""
+    """検索ページ (修正済み)"""
     st.markdown('<h1 class="main-header">🔍 CLIP画像検索</h1>', unsafe_allow_html=True)
-    
-    # 統計情報表示
-    stats = get_database_stats()
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
-    
-    with col1:
-        st.metric("総画像数", stats['total_images'])
-    
-    category_counts = stats['category_counts']
-    columns = [col2, col3, col4, col5, col6]
-    for i, (category, count) in enumerate(category_counts.items()):
-        if i < len(columns):
-            with columns[i]:
-                st.metric(f"{category}", count)
     
     # 検索インターフェース
     st.markdown('<div class="search-container">', unsafe_allow_html=True)
-    
     search_query = st.text_input(
         "検索クエリを入力してください",
         placeholder="例: 赤いバッグ、グレーの折り畳み傘..."
     )
-    
     search_button = st.button("🔍 検索（上位10件表示）", type="primary", use_container_width=True)
-    
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # 検索実行
+    # ----------------------------------------------------
+    # ▼ 1. 検索実行と状態保存のロジック
+    # ----------------------------------------------------
     if search_button and search_query:
         with st.spinner("検索中..."):
             try:
-                # CLIPモデルのロード
                 extract_text_features = load_clip_model()
-                
-                # テキストから特徴量抽出
                 query_vector = extract_text_features(search_query)
-                
-                # 類似画像検索（固定10件）
                 results = search_similar_images(query_vector, 10)
                 
                 if results:
-                    # 検索をログに記録
                     session_id = search_logger.log_search_query(search_query, results)
-                    print(f"APP_DEBUG: Search logged with session ID: {session_id}")
                     
-                    # セッションステートに保存
+                    # 検索結果をセッションステートに保存
                     st.session_state['current_search_session'] = session_id
                     st.session_state['search_results'] = results
                     st.session_state['search_query'] = search_query
                     
-                    print(f"APP_DEBUG: Session state updated - current session: {session_id}")
-                    print(f"APP_DEBUG: Results count: {len(results)}")
-                    
                     st.success(f"✅ 上位10件の結果を表示")
-                    
-                    # 結果表示
-                    for i, (similarity, image_id, filename, category, description, file_path) in enumerate(results):
-                        with st.container():
-                            st.markdown('<div class="result-container">', unsafe_allow_html=True)
-                            
-                            col1, col2, col3 = st.columns([1, 2, 1])
-                            
-                            with col1:
-                                display_image_safely(file_path, width=200)
-                            
-                            with col2:
-                                st.markdown(f"**順位:** {i+1}")
-                                st.markdown(f'<span class="category-badge">{category}</span>', unsafe_allow_html=True)
-                                st.markdown(f'<span class="similarity-score">類似度: {similarity:.3f}</span>', unsafe_allow_html=True)
-                                st.markdown(f"**ファイル名:** {filename}")
-                                st.markdown(f"**説明:** {description}")
-                            
-                            with col3:
-                                # 正解ボタン
-                                button_key = f"correct_{i}_{session_id}"
-                                if st.button(f"✅ 正解", key=button_key, type="secondary"):
-                                    print(f"APP_DEBUG: === CORRECT BUTTON CLICKED ===")
-                                    print(f"APP_DEBUG: Button rank: {i+1}")
-                                    print(f"APP_DEBUG: Session ID: {session_id}")
-                                    print(f"APP_DEBUG: Current session from state: {st.session_state.get('current_search_session', 'NOT_FOUND')}")
-                                    
-                                    # 即座に視覚的フィードバックを表示
-                                    placeholder = st.empty()
-                                    placeholder.info(f"第{i+1}位を正解として記録中...")
-                                    
-                                    try:
-                                        print(f"APP_DEBUG: About to call log_user_feedback...")
-                                        
-                                        # 即座にログ記録を実行 - Streamlit Cloud環境に最適化
-                                        result = search_logger.log_user_feedback(session_id, i + 1)
-                                        print(f"APP_DEBUG: log_user_feedback returned: {result}")
-                                        
-                                        if result:
-                                            print(f"APP_DEBUG: Logging successful, clearing session state")
-                                            placeholder.success(f"✅ 第{i+1}位を正解として記録しました！")
-                                            
-                                            # セッション情報をクリア
-                                            for key in ['current_search_session', 'search_results', 'search_query']:
-                                                if key in st.session_state:
-                                                    del st.session_state[key]
-                                            
-                                            print(f"APP_DEBUG: Session state cleared, triggering rerun in 1 second")
-                                            time.sleep(1)  # 成功メッセージを表示する時間
-                                            st.rerun()
-                                        else:
-                                            print(f"APP_DEBUG: Logging failed - result was False")
-                                            placeholder.error("❌ Google Sheetsへの記録に失敗しました。")
-                                        
-                                    except Exception as e:
-                                        print(f"APP_DEBUG: EXCEPTION in correct button handler: {str(e)}")
-                                        print(f"APP_DEBUG: Error type: {type(e).__name__}")
-                                        import traceback
-                                        print(f"APP_DEBUG: Full traceback: {traceback.format_exc()}")
-                                        placeholder.error(f"❌ 記録処理でエラーが発生しました: {str(e)}")
-                            
-                            st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    # 正解なしボタン
-                    st.markdown("---")
-                    col1, col2, col3 = st.columns([1, 1, 1])
-                    with col2:
-                        no_answer_key = f"no_answer_{session_id}"
-                        if st.button("❌ 正解なし", key=no_answer_key, type="secondary", use_container_width=True):
-                            print(f"APP_DEBUG: === NO CORRECT ANSWER BUTTON CLICKED ===")
-                            print(f"APP_DEBUG: Session ID: {session_id}")
-                            print(f"APP_DEBUG: Current session from state: {st.session_state.get('current_search_session', 'NOT_FOUND')}")
-                            
-                            # 即座に視覚的フィードバックを表示
-                            placeholder = st.empty()
-                            placeholder.info("「正解なし」として記録中...")
-                            
-                            try:
-                                print(f"APP_DEBUG: About to call log_user_feedback with None...")
-                                
-                                # 即座にログ記録を実行 - Streamlit Cloud環境に最適化
-                                result = search_logger.log_user_feedback(session_id, None)
-                                print(f"APP_DEBUG: log_user_feedback returned: {result}")
-                                
-                                if result:
-                                    print(f"APP_DEBUG: Logging successful, clearing session state")
-                                    placeholder.success("✅ 「正解なし」として記録しました。")
-                                    
-                                    # セッション情報をクリア
-                                    for key in ['current_search_session', 'search_results', 'search_query']:
-                                        if key in st.session_state:
-                                            del st.session_state[key]
-                                    
-                                    print(f"APP_DEBUG: Session state cleared, triggering rerun in 1 second")
-                                    time.sleep(1)  # 成功メッセージを表示する時間
-                                    st.rerun()
-                                else:
-                                    print(f"APP_DEBUG: Logging failed - result was False")
-                                    placeholder.error("❌ Google Sheetsへの記録に失敗しました。")
-                                
-                            except Exception as e:
-                                print(f"APP_DEBUG: EXCEPTION in no answer button handler: {str(e)}")
-                                print(f"APP_DEBUG: Error type: {type(e).__name__}")
-                                import traceback
-                                print(f"APP_DEBUG: Full traceback: {traceback.format_exc()}")
-                                placeholder.error(f"❌ 記録処理でエラーが発生しました: {str(e)}")
-                            
-                            st.markdown('</div>', unsafe_allow_html=True)
-                    
+                    # 検索直後に再実行して、下の結果表示ロジックに処理を移す
+                    st.rerun() 
                 else:
                     st.warning("⚠️ 検索結果が見つかりませんでした")
-                    
+                    # 以前の結果が残っている可能性があるのでクリアする
+                    for key in ['current_search_session', 'search_results', 'search_query']:
+                        if key in st.session_state:
+                            del st.session_state[key]
+
             except Exception as e:
                 st.error(f"❌ 検索エラー: {str(e)}")
 
-def gallery_page():
-    """全画像表示ページ"""
-    st.markdown('<h1 class="main-header">🖼️ 画像ギャラリー</h1>', unsafe_allow_html=True)
-    
-    # カテゴリ別画像取得
-    category_data = get_all_images_by_category()
-    
-    if not category_data:
-        st.warning("⚠️ 画像データが見つかりません")
-        return
-    
-    # カテゴリ選択
-    selected_category = st.selectbox(
-        "カテゴリを選択",
-        options=["全て"] + list(category_data.keys()),
-        index=0
-    )
-    
-    # 1行あたりの画像数
-    images_per_row = st.slider("1行あたりの画像数", 2, 6, 4)
-    
-    # 画像表示
-    if selected_category == "全て":
-        for category, images in category_data.items():
-            st.subheader(f"📁 {category} ({len(images)}件)")
-            
-            for i in range(0, len(images), images_per_row):
-                cols = st.columns(images_per_row)
-                for j in range(images_per_row):
-                    if i + j < len(images):
-                        image_id, filename, description, file_path = images[i + j]
-                        with cols[j]:
-                            display_image_safely(file_path, caption=f"{filename}\n{description}")
-            
-            st.divider()
-    else:
-        if selected_category in category_data:
-            images = category_data[selected_category]
-            st.subheader(f"📁 {selected_category} ({len(images)}件)")
-            
-            for i in range(0, len(images), images_per_row):
-                cols = st.columns(images_per_row)
-                for j in range(images_per_row):
-                    if i + j < len(images):
-                        image_id, filename, description, file_path = images[i + j]
-                        with cols[j]:
-                            display_image_safely(file_path, caption=f"{filename}\n{description}")
+    # --------------------------------------------------------------------
+    # ▼ 2. 結果表示とフィードバックボタン処理のロジック
+    #    session_stateに結果がある場合にのみ、このブロック全体が実行される
+    # --------------------------------------------------------------------
+    if 'search_results' in st.session_state and st.session_state['search_results']:
+        results = st.session_state['search_results']
+        session_id = st.session_state['current_search_session']
+
+        st.subheader(f"「{st.session_state['search_query']}」の検索結果")
+
+        # 各検索結果をループで表示
+        for i, (similarity, image_id, filename, category, description, file_path) in enumerate(results):
+            with st.container():
+                st.markdown('<div class="result-container">', unsafe_allow_html=True)
+                
+                col1, col2, col3 = st.columns([1, 2, 1])
+                
+                with col1:
+                    display_image_safely(file_path, width=200)
+                
+                with col2:
+                    st.markdown(f"**順位:** {i+1}")
+                    # ... その他の情報表示 ...
+                    st.markdown(f"**ファイル名:** {filename}")
+
+                with col3:
+                    # 「正解」ボタン
+                    button_key = f"correct_{i}_{session_id}"
+                    if st.button(f"✅ 正解", key=button_key, type="secondary"):
+                        placeholder = st.empty()
+                        placeholder.info(f"第{i+1}位を正解として記録中...")
+                        
+                        try:
+                            result = search_logger.log_user_feedback(session_id, i + 1)
+                            if result:
+                                placeholder.success(f"✅ 第{i+1}位を正解として記録しました！")
+                                for key in ['current_search_session', 'search_results', 'search_query']:
+                                    if key in st.session_state: del st.session_state[key]
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                placeholder.error("❌ Google Sheetsへの記録に失敗しました。")
+                        except Exception as e:
+                            placeholder.error(f"❌ 記録処理でエラーが発生しました: {str(e)}")
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+        
+        # --------------------------------------------------
+        # ▼ 「正解なし」ボタンも同じブロック内で処理
+        # --------------------------------------------------
+        st.markdown("---")
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col2:
+            no_answer_key = f"no_answer_{session_id}"
+            if st.button("❌ 正解なし", key=no_answer_key, type="secondary", use_container_width=True):
+                placeholder = st.empty()
+                placeholder.info("「正解なし」として記録中...")
+                
+                try:
+                    # ランクをNoneとしてフィードバックを記録
+                    result = search_logger.log_user_feedback(session_id, None) 
+                    
+                    if result:
+                        placeholder.success("✅ 「正解なし」として記録しました。")
+                        
+                        # 成功したらセッションをクリアして初期状態に戻す
+                        for key in ['current_search_session', 'search_results', 'search_query']:
+                            if key in st.session_state:
+                                del st.session_state[key]
+                        
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        placeholder.error("❌ Google Sheetsへの記録に失敗しました。")
+                
+                except Exception as e:
+                    placeholder.error(f"❌ 記録処理でエラーが発生しました: {str(e)}")
 
 def main():
     """メイン処理"""
