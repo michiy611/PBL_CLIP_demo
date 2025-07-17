@@ -45,12 +45,6 @@ st.markdown("""
     text-align: center;
     margin-bottom: 2rem;
 }
-.search-container {
-    background-color: #f0f2f6;
-    padding: 1.5rem;
-    border-radius: 10px;
-    margin-bottom: 2rem;
-}
 .result-container {
     border: 1px solid #ddd;
     border-radius: 8px;
@@ -122,13 +116,11 @@ def search_page():
     st.markdown('<h1 class="main-header">🔍 CLIP画像検索</h1>', unsafe_allow_html=True)
     
     # 検索インターフェース
-    st.markdown('<div class="search-container">', unsafe_allow_html=True)
     search_query = st.text_input(
         "検索クエリを入力してください",
         placeholder="例: 赤いバッグ、グレーの折り畳み傘..."
     )
     search_button = st.button("🔍 検索（上位10件表示）", type="primary", use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
     
     # ----------------------------------------------------
     # ▼ 1. 検索実行と状態保存のロジック
