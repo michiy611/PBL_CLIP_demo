@@ -56,7 +56,9 @@ def search_similar_images(query_vector: np.ndarray, top_k: int = 10) -> List[Tup
     for row in results:
         distance, image_id, filename, category, description, file_path = row
         similarity = 1 - distance  # 距離を類似度に変換
-        formatted_results.append((similarity, image_id, filename, category, description, file_path))
+        # パス区切り文字を正規化（Windows → Unix）
+        normalized_path = file_path.replace('\\', '/')
+        formatted_results.append((similarity, image_id, filename, category, description, normalized_path))
     
     return formatted_results
 
@@ -85,7 +87,9 @@ def get_all_images_by_category() -> dict:
     for category, image_id, filename, description, file_path in results:
         if category not in category_dict:
             category_dict[category] = []
-        category_dict[category].append((image_id, filename, description, file_path))
+        # パス区切り文字を正規化（Windows → Unix）
+        normalized_path = file_path.replace('\\', '/')
+        category_dict[category].append((image_id, filename, description, normalized_path))
     
     return category_dict
 
