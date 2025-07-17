@@ -5,9 +5,7 @@ Streamlitを使用したWebインターフェース
 
 import streamlit as st
 import os
-import sys
 from PIL import Image
-import numpy as np
 
 # クラウド環境対応のキャッシュ設定
 @st.cache_resource
@@ -24,7 +22,7 @@ try:
         get_database_stats,
         check_database_exists
     )
-    from cloud_logger import search_logger
+    from sheets_logger import search_logger
 except ImportError as e:
     st.error(f"データベースモジュールの読み込みエラー: {e}")
     st.stop()
@@ -58,15 +56,6 @@ st.markdown("""
     padding: 1rem;
     margin-bottom: 1rem;
     background-color: white;
-}
-.feedback-button {
-    margin-top: 1rem;
-}
-.statistics-section {
-    background-color: #f8f9fa;
-    padding: 1rem;
-    border-radius: 8px;
-    margin-top: 2rem;
 }
 .similarity-score {
     font-weight: bold;
@@ -102,28 +91,20 @@ def display_image_safely(image_path, caption="", width=None):
     """画像を安全に表示"""
     try:
         if not os.path.exists(image_path):
-            # パスの正規化を試行
             normalized_path = os.path.normpath(image_path)
             if os.path.exists(normalized_path):
                 image_path = normalized_path
             else:
                 st.error(f"画像ファイルが見つかりません: {image_path}")
-                # デバッグ情報（本番環境ではコメントアウト）
-                # st.info(f"🔍 現在のディレクトリ: `{os.getcwd()}`")
-                # st.info(f"🔍 存在チェック: `{os.path.exists(image_path)}`")
                 return
         
         image = Image.open(image_path)
-        # 大きな画像のリサイズ（メモリ節約）
         if width and width < 300:
-            # サムネイル表示の場合はリサイズ
             image.thumbnail((width * 2, width * 2), Image.Resampling.LANCZOS)
         st.image(image, caption=caption, width=width)
         
     except Exception as e:
         st.error(f"画像表示エラー: {str(e)}")
-        # デバッグ情報（本番環境ではコメントアウト）
-        # st.info(f"🔍 ファイルパス: `{image_path}`")
 
 def search_page():
     """検索ページ"""
@@ -159,7 +140,7 @@ def search_page():
     if search_button and search_query:
         with st.spinner("検索中..."):
             try:
-                # CLIPモデルのロード（キャッシュ済み）
+                # CLIPモデルのロード
                 extract_text_features = load_clip_model()
                 
                 # テキストから特徴量抽出
@@ -169,7 +150,7 @@ def search_page():
                 results = search_similar_images(query_vector, 10)
                 
                 if results:
-                    # ログに検索を記録
+                    # 検索をログに記録
                     session_id = search_logger.log_search_query(search_query, results)
                     
                     # セッションステートに保存
@@ -219,30 +200,6 @@ def search_page():
                     
             except Exception as e:
                 st.error(f"❌ 検索エラー: {str(e)}")
-    
-    # 検索統計の表示（セッションが存在する場合）
-    if 'current_search_session' in st.session_state:
-        st.markdown("---")
-        st.markdown("### 📊 検索統計")
-        
-        try:
-            stats = search_logger.get_search_statistics_from_fallback()
-            
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("総検索回数", stats['total_searches'])
-            with col2:
-                st.metric("評価済み検索", stats['searches_with_feedback'])
-            with col3:
-                st.metric("正解発見数", stats['correct_answers_found'])
-            with col4:
-                if stats['searches_with_feedback'] > 0:
-                    accuracy = stats['accuracy_rate'] * 100
-                    st.metric("精度", f"{accuracy:.1f}%")
-                else:
-                    st.metric("精度", "0%")
-        except Exception as e:
-            st.error(f"統計取得エラー: {e}")
 
 def gallery_page():
     """全画像表示ページ"""
@@ -267,11 +224,9 @@ def gallery_page():
     
     # 画像表示
     if selected_category == "全て":
-        # 全カテゴリ表示
         for category, images in category_data.items():
             st.subheader(f"📁 {category} ({len(images)}件)")
             
-            # 画像をグリッド表示
             for i in range(0, len(images), images_per_row):
                 cols = st.columns(images_per_row)
                 for j in range(images_per_row):
@@ -282,12 +237,10 @@ def gallery_page():
             
             st.divider()
     else:
-        # 選択されたカテゴリのみ表示
         if selected_category in category_data:
             images = category_data[selected_category]
             st.subheader(f"📁 {selected_category} ({len(images)}件)")
             
-            # 画像をグリッド表示
             for i in range(0, len(images), images_per_row):
                 cols = st.columns(images_per_row)
                 for j in range(images_per_row):
@@ -295,113 +248,6 @@ def gallery_page():
                         image_id, filename, description, file_path = images[i + j]
                         with cols[j]:
                             display_image_safely(file_path, caption=f"{filename}\n{description}")
-
-# def debug_page():
-#     """デバッグページ"""
-#     st.markdown('<h1 class="main-header">🔧 システムデバッグ</h1>', unsafe_allow_html=True)
-    
-#     # 現在のディレクトリ
-#     st.subheader("📁 現在のディレクトリ")
-#     st.code(f"os.getcwd(): {os.getcwd()}")
-    
-#     # プロジェクトルートの確認
-#     st.subheader("📋 ルートファイル")
-#     try:
-#         root_files = os.listdir(".")
-#         st.write("ルートディレクトリの内容:", root_files)
-#     except Exception as e:
-#         st.error(f"ルートディレクトリの読み取りエラー: {e}")
-    
-#     # dataディレクトリの確認
-#     st.subheader("🗂️ dataディレクトリ")
-#     if os.path.exists("data"):
-#         try:
-#             data_files = os.listdir("data")
-#             st.success(f"✅ dataディレクトリが存在します: {data_files}")
-            
-#             # data/imgディレクトリの確認
-#             if os.path.exists("data/img"):
-#                 img_dirs = os.listdir("data/img")
-#                 st.success(f"✅ data/imgディレクトリが存在します: {img_dirs}")
-                
-#                 # 各カテゴリフォルダの確認
-#                 for category in img_dirs[:3]:  # 最初の3つのみ
-#                     category_path = f"data/img/{category}"
-#                     if os.path.isdir(category_path):
-#                         files = os.listdir(category_path)
-#                         st.info(f"📁 {category}フォルダ: {len(files)}個のファイル")
-#                         if files:
-#                             st.code(f"最初のファイル: {files[0]}")
-#             else:
-#                 st.error("❌ data/imgディレクトリが存在しません")
-#         except Exception as e:
-#             st.error(f"dataディレクトリの読み取りエラー: {e}")
-#     else:
-#         st.error("❌ dataディレクトリが存在しません")
-    
-#     # データベースファイルの確認
-#     st.subheader("🗄️ データベース")
-#     if os.path.exists("image_vectors.db"):
-#         size = os.path.getsize("image_vectors.db")
-#         st.success(f"✅ image_vectors.db が存在します (サイズ: {size:,} bytes)")
-#     else:
-#         st.error("❌ image_vectors.db が存在しません")
-    
-#     # 特定画像ファイルのテスト
-#     st.subheader("🖼️ サンプル画像テスト")
-#     test_paths = [
-#         "data/img/カサ/k22001-傘-0001-01.jpg",
-#         "data/img/バッグ/k22001-バッグ-0001-01.jpg",
-#         "data/img/スマホ/k22001-スマホ-0001-01.jpg"
-#     ]
-
-#     # データベース内のパス情報をテスト
-#     st.subheader("🗄️ データベース内のファイルパス")
-#     try:
-#         from database_utils import get_all_images_by_category
-#         category_data = get_all_images_by_category()
-        
-#         if category_data:
-#             st.success(f"✅ データベースから {len(category_data)} カテゴリを取得")
-            
-#             # 各カテゴリの最初の画像パスを確認
-#             for category, images in list(category_data.items())[:3]:  # 最初の3カテゴリ
-#                 if images:
-#                     image_id, filename, description, file_path = images[0]
-#                     st.info(f"📁 {category}: `{file_path}`")
-                    
-#                     # パスの存在確認
-#                     exists = os.path.exists(file_path)
-#                     st.write(f"{'✅' if exists else '❌'} ファイル存在: {exists}")
-                    
-#                     # 実際に画像表示をテスト
-#                     if exists:
-#                         try:
-#                             st.image(file_path, caption=f"{category}: {filename}", width=150)
-#                         except Exception as e:
-#                             st.error(f"画像表示エラー: {e}")
-#         else:
-#             st.error("❌ データベースからデータを取得できませんでした")
-            
-#     except Exception as e:
-#         st.error(f"❌ データベーステストエラー: {e}")
-    
-#     # 手動テスト（既存）
-#     st.subheader("🖼️ 手動ファイルパステスト")
-#     st.image(test_paths[0], caption="カサ", width=200)
-#     st.image(test_paths[1], caption="バッグ", width=200)
-#     st.image(test_paths[2], caption="スマホ", width=200)
-    
-#     for path in test_paths:
-#         exists = os.path.exists(path)
-#         if exists:
-#             try:
-#                 size = os.path.getsize(path)
-#                 st.success(f"✅ `{path}` (サイズ: {size:,} bytes)")
-#             except Exception as e:
-#                 st.warning(f"⚠️ `{path}` 存在するがサイズ取得エラー: {e}")
-#         else:
-#             st.error(f"❌ `{path}` が存在しません")
 
 def main():
     """メイン処理"""
@@ -412,7 +258,7 @@ def main():
     st.sidebar.title("🎯 ナビゲーション")
     page = st.sidebar.radio(
         "ページを選択",
-        ["🔍 画像検索", "🖼️ ギャラリー"],  # , "🔧 デバッグ"
+        ["🔍 画像検索", "🖼️ ギャラリー"],
         index=0
     )
     
@@ -430,13 +276,17 @@ def main():
     except:
         st.sidebar.error("データベース情報の取得に失敗")
     
+    # 検索統計をサイドバーに表示
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📈 検索統計")
+    st.sidebar.metric("総検索回数", search_logger.get_session_count())
+    st.sidebar.metric("評価済み", search_logger.get_feedback_count())
+    
     # ページ切り替え
     if page == "🔍 画像検索":
         search_page()
     elif page == "🖼️ ギャラリー":
         gallery_page()
-    # elif page == "🔧 デバッグ":
-    #     debug_page()
     
     # フッター
     st.markdown("---")
