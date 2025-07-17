@@ -304,6 +304,11 @@ def debug_page():
         "data/img/バッグ/k22001-バッグ-0001-01.jpg",
         "data/img/スマホ/k22001-スマホ-0001-01.jpg"
     ]
+
+    ## 画像表示テスト
+    st.image(test_paths[0], caption="カサ", width=200)
+    st.image(test_paths[1], caption="バッグ", width=200)
+    st.image(test_paths[2], caption="スマホ", width=200)
     
     for path in test_paths:
         exists = os.path.exists(path)
