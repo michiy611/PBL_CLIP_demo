@@ -16,13 +16,27 @@ def get_db_connection():
     conn.enable_load_extension(False)
     return conn
 
-def search_similar_images(query_vector: np.ndarray, top_k: int = 10) -> List[Tuple]:
+def normalize_image_path(file_path: str) -> str:
     """
-    クエリベクトルに類似する画像を検索
+    画像パスを正規化
     
     Args:
-        query_vector: 検索クエリの特徴量ベクトル
-        top_k: 取得する上位k件
+        file_path: データベースに保存されているパス
+        
+    Returns:
+        str: 正規化されたパス
+    """
+    if file_path.startswith("../"):
+        return file_path.replace("../", "")
+    return file_path
+
+def search_similar_images(query_vector: np.ndarray, top_k: int = 5) -> List[Tuple]:
+    """
+    クエリベクトルに類似した画像を検索
+    
+    Args:
+        query_vector: 検索クエリのベクトル (shape: [512])
+        top_k: 返す結果の数
         
     Returns:
         List of tuples: (similarity, image_id, filename, category, description, file_path)
@@ -30,20 +44,21 @@ def search_similar_images(query_vector: np.ndarray, top_k: int = 10) -> List[Tup
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # sqlite-vecを使用したベクトル類似度検索
+    # SQLite-vecで類似検索
     query_blob = query_vector.astype(np.float32).tobytes()
     
     query = '''
     SELECT 
-        vec_distance_cosine(iv.embedding, ?) as similarity,
+        distance,
         i.id,
-        i.filename,
-        i.category,
+        i.filename, 
+        i.category, 
         i.description,
         i.file_path
-    FROM image_vectors iv
-    JOIN images i ON iv.id = i.id
-    ORDER BY similarity ASC
+    FROM image_vectors v
+    JOIN images i ON v.id = i.id
+    WHERE v.embedding MATCH ?
+    ORDER BY distance
     LIMIT ?
     '''
     
@@ -51,12 +66,13 @@ def search_similar_images(query_vector: np.ndarray, top_k: int = 10) -> List[Tup
     results = cursor.fetchall()
     conn.close()
     
-    # コサイン距離を類似度に変換（1 - distance）
+    # 距離を類似度に変換し、パスを正規化
     formatted_results = []
     for row in results:
         distance, image_id, filename, category, description, file_path = row
-        similarity = 1 - distance  # 距離を類似度に変換
-        formatted_results.append((similarity, image_id, filename, category, description, file_path))
+        similarity = 1.0 / (1.0 + distance)  # 距離を類似度に変換
+        normalized_path = normalize_image_path(file_path)  # パス正規化
+        formatted_results.append((similarity, image_id, filename, category, description, normalized_path))
     
     return formatted_results
 
@@ -80,12 +96,13 @@ def get_all_images_by_category() -> dict:
     results = cursor.fetchall()
     conn.close()
     
-    # カテゴリ別に整理
+    # カテゴリ別に整理し、パスを正規化
     category_dict = {}
     for category, image_id, filename, description, file_path in results:
         if category not in category_dict:
             category_dict[category] = []
-        category_dict[category].append((image_id, filename, description, file_path))
+        normalized_path = normalize_image_path(file_path)  # パス正規化
+        category_dict[category].append((image_id, filename, description, normalized_path))
     
     return category_dict
 

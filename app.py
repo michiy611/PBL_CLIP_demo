@@ -91,16 +91,43 @@ def check_setup():
 def display_image_safely(image_path, caption="", width=None):
     """画像を安全に表示"""
     try:
-        if os.path.exists(image_path):
-            image = Image.open(image_path)
+        # パスの正規化（相対パスの問題を解決）
+        if image_path.startswith("../"):
+            # "../data/img" -> "data/img" に変換
+            normalized_path = image_path.replace("../", "")
+        else:
+            normalized_path = image_path
+        
+        if os.path.exists(normalized_path):
+            image = Image.open(normalized_path)
             st.image(image, caption=caption, width=width)
         else:
-            st.warning(f"画像ファイルが見つかりません: {caption}")
             # プレースホルダー表示
-            st.markdown(f"**{caption}**")
-            st.info("画像は GitHub LFS からダウンロード中...")
+            st.markdown(f"""
+            <div style="
+                border: 2px dashed #ccc; 
+                padding: 20px; 
+                text-align: center; 
+                background-color: #f9f9f9;
+                border-radius: 8px;
+                width: {width if width else 200}px;
+                height: 150px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                margin: 0 auto;
+            ">
+                <div style="font-size: 3em; color: #ddd;">📷</div>
+                <div style="color: #666; font-size: 0.9em;">画像が見つかりません</div>
+                <div style="color: #999; font-size: 0.8em; margin-top: 5px;">{caption}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            # デバッグ情報（開発時のみ表示）
+            if st.sidebar.checkbox("デバッグ情報を表示", value=False):
+                st.error(f"画像パス: {image_path} → {normalized_path}")
     except Exception as e:
         st.error(f"画像表示エラー: {str(e)}")
+        st.text(f"パス: {image_path}")
 
 def search_page():
     """検索ページ"""
