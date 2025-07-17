@@ -10,13 +10,14 @@ from typing import List, Optional, Dict, Any
 
 # Google Cloud Logging用のクラス
 class CloudSearchLogger:
-    def __init__(self, use_cloud_logging: bool = True, project_id: str = None):
+    def __init__(self, use_cloud_logging: bool = True, project_id: str = None, credentials=None):
         """
         Initialize the cloud search logger
         
         Args:
             use_cloud_logging: Whether to use Google Cloud Logging (requires credentials)
             project_id: Google Cloud Project ID (auto-detected if None)
+            credentials: Google Cloud credentials object (for Streamlit Cloud)
         """
         self.use_cloud_logging = use_cloud_logging
         self.fallback_file = "search_logs_fallback.jsonl"
@@ -24,7 +25,13 @@ class CloudSearchLogger:
         if use_cloud_logging:
             try:
                 from google.cloud import logging as cloud_logging
-                self.cloud_client = cloud_logging.Client(project=project_id)
+                
+                # Initialize client with custom credentials if provided
+                if credentials:
+                    self.cloud_client = cloud_logging.Client(project=project_id, credentials=credentials)
+                else:
+                    self.cloud_client = cloud_logging.Client(project=project_id)
+                
                 self.logger = self.cloud_client.logger("clip-search-demo")
                 self._test_connection()
                 print("✅ Google Cloud Logging connected successfully")
@@ -491,25 +498,60 @@ class PapertrailSearchLogger:
         return f"search_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
 
 # Configuration and factory function
-def create_logger(service: str = "logtail", **kwargs):
+def create_logger(service: str = "cloud", **kwargs):
     """
     Factory function to create appropriate logger
     
     Args:
-        service: "logtail" for Logtail/Better Stack, "cloud" for Google Cloud Logging, "papertrail" for Papertrail
+        service: "cloud" for Google Cloud Logging, "logtail" for Logtail/Better Stack, "papertrail" for Papertrail
         **kwargs: Service-specific configuration
     
     Returns:
         Logger instance
     """
-    if service == "logtail":
-        return LogtailSearchLogger(**kwargs)
-    elif service == "cloud":
+    if service == "cloud":
         return CloudSearchLogger(**kwargs)
+    elif service == "logtail":
+        return LogtailSearchLogger(**kwargs)
     elif service == "papertrail":
         return PapertrailSearchLogger(**kwargs)
     else:
         raise ValueError(f"Unknown logging service: {service}")
+
+def create_streamlit_logger():
+    """
+    Create logger with Streamlit Cloud secrets support
+    
+    Returns:
+        Logger instance configured for Streamlit Cloud
+    """
+    try:
+        import streamlit as st
+        import json
+        from google.oauth2 import service_account
+        
+        # Check if running in Streamlit and secrets are available
+        if hasattr(st, 'secrets') and "gcp" in st.secrets:
+            project_id = st.secrets["gcp"]["project_id"]
+            
+            # Parse credentials from secrets
+            credentials_info = json.loads(st.secrets["gcp"]["credentials"])
+            credentials = service_account.Credentials.from_service_account_info(credentials_info)
+            
+            print(f"✅ Using Streamlit secrets for project: {project_id}")
+            return create_logger("cloud", project_id=project_id, credentials=credentials)
+        
+        # Fallback to environment variables
+        print("⚠️ Streamlit secrets not found, trying environment variables")
+        return create_logger("cloud")
+        
+    except ImportError:
+        # Not running in Streamlit environment
+        print("⚠️ Not in Streamlit environment, using environment variables")
+        return create_logger("cloud")
+    except Exception as e:
+        print(f"⚠️ Streamlit secrets failed: {e}, falling back to environment variables")
+        return create_logger("cloud")
 
 # Default instance (you can change this based on your preference)
 # For Logtail (recommended):
@@ -523,7 +565,6 @@ def create_logger(service: str = "logtail", **kwargs):
 #                              papertrail_host="logs.papertrailapp.com", 
 #                              papertrail_port=12345)
 
-# Configuration: Set your Google Cloud project ID here or via environment variable
-import os
-gcp_project_id = os.getenv('GOOGLE_CLOUD_PROJECT')
-search_logger = create_logger("cloud", project_id=gcp_project_id) 
+# Configuration: Create logger with Streamlit Cloud support
+# This will automatically detect Streamlit secrets or fall back to environment variables
+search_logger = create_streamlit_logger() 
