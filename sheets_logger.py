@@ -209,7 +209,7 @@ class SheetsLogger:
         
         return session_id
     
-    def log_user_feedback(self, session_id: str, correct_rank: Optional[int]):
+    def log_user_feedback(self, session_id: str, correct_rank: Optional[int]) -> bool:
         """Log user feedback (correct rank or None for no correct answer)"""
         print(f"SHEETS_LOGGER: === Starting log_user_feedback ===")
         print(f"SHEETS_LOGGER: Session ID: {session_id}")
@@ -220,8 +220,9 @@ class SheetsLogger:
         if session_id not in self.session_cache:
             self._add_debug(f"❌ Session not found in cache: {session_id}")
             print(f"SHEETS_LOGGER: Available sessions: {list(self.session_cache.keys())}")
+            print(f"SHEETS_LOGGER: ERROR: Session not found, returning False")
             st.error("Session not found")
-            return
+            return False
         
         session_data = self.session_cache[session_id]
         session_data['correct_rank'] = correct_rank
@@ -294,7 +295,8 @@ class SheetsLogger:
                 print(f"SHEETS_LOGGER: Row written successfully!")
                 
                 self._add_debug("✅ Successfully logged to Google Sheets!")
-                st.success("✅ Logged to Google Sheets")
+                print(f"SHEETS_LOGGER: SUCCESS: Returning True")
+                return True
                 
             else:
                 self._add_debug("❌ No secrets available for fresh connection")
@@ -319,19 +321,22 @@ class SheetsLogger:
                     self.worksheet.append_row(row_data)
                     print(f"SHEETS_LOGGER: Fallback write successful!")
                     self._add_debug("✅ Fallback write successful!")
-                    st.success("✅ Logged to Google Sheets (fallback)")
+                    print(f"SHEETS_LOGGER: SUCCESS: Fallback worked, returning True")
+                    return True
                 except Exception as e2:
                     print(f"SHEETS_LOGGER: Fallback write also failed: {str(e2)}")
                     self._add_debug(f"❌ Fallback write also failed: {e2}")
-                    st.error(f"Sheets logging error: {e2}")
                     # Store in fallback logs
                     self._store_fallback_log(session_data, correct_rank, results)
+                    print(f"SHEETS_LOGGER: ERROR: All writes failed, returning False")
+                    return False
             else:
                 print(f"SHEETS_LOGGER: No self.worksheet available for fallback")
                 self._add_debug("❌ No worksheet available for fallback")
-                st.error(f"Sheets logging error: {e}")
                 # Store in fallback logs
                 self._store_fallback_log(session_data, correct_rank, results)
+                print(f"SHEETS_LOGGER: ERROR: No fallback available, returning False")
+                return False
         
         print(f"SHEETS_LOGGER: === Completed log_user_feedback ===")
     

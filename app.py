@@ -193,20 +193,45 @@ def search_page():
                             
                             with col3:
                                 # 正解ボタン
-                                if st.button(f"✅ 正解", key=f"correct_{i}", type="secondary"):
-                                    print(f"APP_DEBUG: Correct button clicked for rank {i+1}")
+                                button_key = f"correct_{i}_{session_id}"
+                                if st.button(f"✅ 正解", key=button_key, type="secondary"):
+                                    print(f"APP_DEBUG: === CORRECT BUTTON CLICKED ===")
+                                    print(f"APP_DEBUG: Button rank: {i+1}")
+                                    print(f"APP_DEBUG: Session ID: {session_id}")
                                     print(f"APP_DEBUG: Current session from state: {st.session_state.get('current_search_session', 'NOT_FOUND')}")
-                                    current_session = st.session_state.get('current_search_session')
-                                    if current_session:
-                                        st.info(f"正解ボタンが押されました: 第{i+1}位")
-                                        print(f"APP_DEBUG: Calling log_user_feedback with session: {current_session}, rank: {i+1}")
-                                        with st.spinner("Google Sheetsに記録中..."):
-                                            search_logger.log_user_feedback(current_session, i + 1)
-                                        st.success(f"第{i+1}位を正解として記録しました！")
-                                        st.rerun()
-                                    else:
-                                        print(f"APP_DEBUG: No current session found in state!")
-                                        st.error("セッション情報が見つかりません")
+                                    
+                                    try:
+                                        print(f"APP_DEBUG: About to call log_user_feedback...")
+                                        st.info(f"第{i+1}位を正解として記録中...")
+                                        
+                                        # 即座にログ記録を実行 - Streamlit Cloud環境に最適化
+                                        result = search_logger.log_user_feedback(session_id, i + 1)
+                                        print(f"APP_DEBUG: log_user_feedback returned: {result}")
+                                        
+                                        if result:
+                                            print(f"APP_DEBUG: Logging successful, clearing session state")
+                                            st.success(f"✅ 第{i+1}位を正解として記録しました！")
+                                            
+                                            # セッション情報をクリア
+                                            if 'current_search_session' in st.session_state:
+                                                del st.session_state['current_search_session']
+                                            if 'search_results' in st.session_state:
+                                                del st.session_state['search_results']
+                                            if 'search_query' in st.session_state:
+                                                del st.session_state['search_query']
+                                            
+                                            print(f"APP_DEBUG: Session state cleared, triggering rerun")
+                                            st.rerun()
+                                        else:
+                                            print(f"APP_DEBUG: Logging failed - result was False")
+                                            st.error("❌ Google Sheetsへの記録に失敗しました。")
+                                        
+                                    except Exception as e:
+                                        print(f"APP_DEBUG: EXCEPTION in correct button handler: {str(e)}")
+                                        print(f"APP_DEBUG: Error type: {type(e).__name__}")
+                                        import traceback
+                                        print(f"APP_DEBUG: Full traceback: {traceback.format_exc()}")
+                                        st.error(f"❌ 記録処理でエラーが発生しました: {str(e)}")
                             
                             st.markdown('</div>', unsafe_allow_html=True)
                     
@@ -214,20 +239,46 @@ def search_page():
                     st.markdown("---")
                     col1, col2, col3 = st.columns([1, 1, 1])
                     with col2:
-                        if st.button("❌ 正解なし", type="secondary", use_container_width=True):
-                            print(f"APP_DEBUG: No correct answer button clicked")
+                        no_answer_key = f"no_answer_{session_id}"
+                        if st.button("❌ 正解なし", key=no_answer_key, type="secondary", use_container_width=True):
+                            print(f"APP_DEBUG: === NO CORRECT ANSWER BUTTON CLICKED ===")
+                            print(f"APP_DEBUG: Session ID: {session_id}")
                             print(f"APP_DEBUG: Current session from state: {st.session_state.get('current_search_session', 'NOT_FOUND')}")
-                            current_session = st.session_state.get('current_search_session')
-                            if current_session:
-                                st.info("「正解なし」ボタンが押されました")
-                                print(f"APP_DEBUG: Calling log_user_feedback with session: {current_session}, rank: None")
-                                with st.spinner("Google Sheetsに記録中..."):
-                                    search_logger.log_user_feedback(current_session, None)
-                                st.info("「正解なし」として記録しました。")
-                                st.rerun()
-                            else:
-                                print(f"APP_DEBUG: No current session found in state!")
-                                st.error("セッション情報が見つかりません")
+                            
+                            try:
+                                print(f"APP_DEBUG: About to call log_user_feedback with None...")
+                                st.info("「正解なし」として記録中...")
+                                
+                                # 即座にログ記録を実行 - Streamlit Cloud環境に最適化
+                                result = search_logger.log_user_feedback(session_id, None)
+                                print(f"APP_DEBUG: log_user_feedback returned: {result}")
+                                
+                                if result:
+                                    print(f"APP_DEBUG: Logging successful, clearing session state")
+                                    st.success("✅ 「正解なし」として記録しました。")
+                                    
+                                    # セッション情報をクリア
+                                    if 'current_search_session' in st.session_state:
+                                        del st.session_state['current_search_session']
+                                    if 'search_results' in st.session_state:
+                                        del st.session_state['search_results']
+                                    if 'search_query' in st.session_state:
+                                        del st.session_state['search_query']
+                                    
+                                    print(f"APP_DEBUG: Session state cleared, triggering rerun")
+                                    st.rerun()
+                                else:
+                                    print(f"APP_DEBUG: Logging failed - result was False")
+                                    st.error("❌ Google Sheetsへの記録に失敗しました。")
+                                
+                            except Exception as e:
+                                print(f"APP_DEBUG: EXCEPTION in no answer button handler: {str(e)}")
+                                print(f"APP_DEBUG: Error type: {type(e).__name__}")
+                                import traceback
+                                print(f"APP_DEBUG: Full traceback: {traceback.format_exc()}")
+                                st.error(f"❌ 記録処理でエラーが発生しました: {str(e)}")
+                            
+                            st.markdown('</div>', unsafe_allow_html=True)
                     
                 else:
                     st.warning("⚠️ 検索結果が見つかりませんでした")
