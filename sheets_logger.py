@@ -214,37 +214,58 @@ class SheetsLogger:
             else:
                 row_data.extend(["", "", ""])
         
-        # Log to Google Sheets
-        if self.worksheet:
-            try:
-                self._add_debug("📤 Attempting to write to Google Sheets...")
-                self.worksheet.append_row(row_data)
+        # Try to write to Google Sheets with fresh connection
+        try:
+            self._add_debug("📤 Creating fresh connection for reliable write...")
+            
+            # Create fresh connection (same as test_connection)
+            if hasattr(st, 'secrets') and 'gcp_service_account' in st.secrets:
+                credentials_info = dict(st.secrets["gcp_service_account"])
+                scope = [
+                    'https://spreadsheets.google.com/feeds',
+                    'https://www.googleapis.com/auth/drive'
+                ]
+                credentials = Credentials.from_service_account_info(credentials_info, scopes=scope)
+                gc = gspread.authorize(credentials)
+                
+                # Access spreadsheet and worksheet
+                spreadsheet_name = "CLIP Search Logs"
+                spreadsheet = gc.open(spreadsheet_name)
+                worksheet = spreadsheet.worksheet("Search Logs")
+                
+                self._add_debug("✅ Fresh connection established")
+                
+                # Write data
+                self._add_debug(f"📤 Writing row with {len(row_data)} columns...")
+                worksheet.append_row(row_data)
+                
                 self._add_debug("✅ Successfully logged to Google Sheets!")
                 st.success("✅ Logged to Google Sheets")
-            except Exception as e:
-                self._add_debug(f"❌ Sheets logging error: {e}")
+                
+            else:
+                self._add_debug("❌ No secrets available for fresh connection")
+                raise Exception("Streamlit secrets not available")
+                
+        except Exception as e:
+            self._add_debug(f"❌ Fresh connection write failed: {e}")
+            
+            # Fallback: try original self.worksheet
+            if self.worksheet:
+                try:
+                    self._add_debug("📤 Trying fallback to self.worksheet...")
+                    self.worksheet.append_row(row_data)
+                    self._add_debug("✅ Fallback write successful!")
+                    st.success("✅ Logged to Google Sheets (fallback)")
+                except Exception as e2:
+                    self._add_debug(f"❌ Fallback write also failed: {e2}")
+                    st.error(f"Sheets logging error: {e2}")
+                    # Store in fallback logs
+                    self._store_fallback_log(session_data, correct_rank, results)
+            else:
+                self._add_debug("❌ No worksheet available for fallback")
                 st.error(f"Sheets logging error: {e}")
-                # Fallback to local storage
-                self.fallback_logs.append({
-                    'timestamp': session_data['timestamp'],
-                    'session_id': session_id,
-                    'query': session_data['query'],
-                    'correct_rank': correct_rank,
-                    'results': results
-                })
-                self._add_debug(f"📁 Logged to fallback storage. Total fallback logs: {len(self.fallback_logs)}")
-        else:
-            self._add_debug("❌ No worksheet available, using fallback storage")
-            # Fallback to local storage
-            self.fallback_logs.append({
-                'timestamp': session_data['timestamp'],
-                'session_id': session_id,
-                'query': session_data['query'],
-                'correct_rank': correct_rank,
-                'results': results
-            })
-            st.info("📝 Logged locally (Sheets unavailable)")
-            self._add_debug(f"📁 Logged to fallback storage. Total fallback logs: {len(self.fallback_logs)}")
+                # Store in fallback logs
+                self._store_fallback_log(session_data, correct_rank, results)
     
     def get_session_count(self) -> int:
         """Get total session count"""
@@ -254,6 +275,88 @@ class SheetsLogger:
         """Get feedback count"""
         return len([s for s in self.session_cache.values() if s['correct_rank'] is not None])
     
+    def get_secrets_diagnostic(self) -> dict:
+        """Detailed diagnostic of Streamlit secrets configuration"""
+        diagnostic = {
+            'streamlit_has_secrets': hasattr(st, 'secrets'),
+            'gcp_section_exists': False,
+            'required_fields_present': {},
+            'field_values_safe': {},
+            'missing_fields': [],
+            'empty_fields': [],
+            'diagnostic_message': ""
+        }
+        
+        try:
+            if hasattr(st, 'secrets'):
+                diagnostic['streamlit_has_secrets'] = True
+                self._add_debug("✅ st.secrets is available")
+                
+                # Check if gcp_service_account section exists
+                if 'gcp_service_account' in st.secrets:
+                    diagnostic['gcp_section_exists'] = True
+                    self._add_debug("✅ gcp_service_account section found")
+                    
+                    # Required fields for Google Sheets API
+                    required_fields = [
+                        'type', 'project_id', 'private_key_id', 'private_key',
+                        'client_email', 'client_id', 'auth_uri', 'token_uri',
+                        'auth_provider_x509_cert_url', 'client_x509_cert_url'
+                    ]
+                    
+                    gcp_secrets = st.secrets["gcp_service_account"]
+                    
+                    for field in required_fields:
+                        if field in gcp_secrets:
+                            diagnostic['required_fields_present'][field] = True
+                            value = gcp_secrets[field]
+                            if value and str(value).strip():
+                                # Store safe representation of field values
+                                if field == 'private_key':
+                                    diagnostic['field_values_safe'][field] = f"Present ({len(str(value))} chars)"
+                                elif field == 'client_email':
+                                    diagnostic['field_values_safe'][field] = str(value)
+                                elif field == 'project_id':
+                                    diagnostic['field_values_safe'][field] = str(value)
+                                else:
+                                    diagnostic['field_values_safe'][field] = f"Present ({len(str(value))} chars)"
+                                self._add_debug(f"✅ Field '{field}': Present")
+                            else:
+                                diagnostic['empty_fields'].append(field)
+                                diagnostic['field_values_safe'][field] = "Empty"
+                                self._add_debug(f"❌ Field '{field}': Empty")
+                        else:
+                            diagnostic['required_fields_present'][field] = False
+                            diagnostic['missing_fields'].append(field)
+                            self._add_debug(f"❌ Field '{field}': Missing")
+                    
+                    # Generate diagnostic message
+                    if not diagnostic['missing_fields'] and not diagnostic['empty_fields']:
+                        diagnostic['diagnostic_message'] = "✅ All required fields are present and non-empty"
+                    else:
+                        msg_parts = []
+                        if diagnostic['missing_fields']:
+                            msg_parts.append(f"Missing fields: {', '.join(diagnostic['missing_fields'])}")
+                        if diagnostic['empty_fields']:
+                            msg_parts.append(f"Empty fields: {', '.join(diagnostic['empty_fields'])}")
+                        diagnostic['diagnostic_message'] = "❌ " + "; ".join(msg_parts)
+                        
+                else:
+                    diagnostic['gcp_section_exists'] = False
+                    diagnostic['diagnostic_message'] = "❌ [gcp_service_account] section not found in secrets"
+                    self._add_debug("❌ gcp_service_account section not found")
+                    
+            else:
+                diagnostic['streamlit_has_secrets'] = False
+                diagnostic['diagnostic_message'] = "❌ st.secrets is not available"
+                self._add_debug("❌ st.secrets is not available")
+                
+        except Exception as e:
+            diagnostic['diagnostic_message'] = f"❌ Error reading secrets: {e}"
+            self._add_debug(f"❌ Error in secrets diagnostic: {e}")
+            
+        return diagnostic
+
     def test_connection(self) -> dict:
         """Test Google Sheets connection and return detailed status"""
         status = {
@@ -327,6 +430,18 @@ class SheetsLogger:
             self._add_debug(f"❌ Connection test failed: {e}")
             
         return status
+
+    def _store_fallback_log(self, session_data: dict, correct_rank: Optional[int], results: List):
+        """Store log data in fallback storage"""
+        self.fallback_logs.append({
+            'timestamp': session_data['timestamp'],
+            'session_id': session_data.get('session_id', 'unknown'),
+            'query': session_data['query'],
+            'correct_rank': correct_rank,
+            'results': results
+        })
+        self._add_debug(f"📁 Logged to fallback storage. Total fallback logs: {len(self.fallback_logs)}")
+        st.info("📝 Logged locally (Sheets unavailable)")
 
 # グローバルインスタンス
 search_logger = SheetsLogger() 

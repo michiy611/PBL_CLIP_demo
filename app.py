@@ -190,7 +190,9 @@ def search_page():
                             with col3:
                                 # 正解ボタン
                                 if st.button(f"✅ 正解", key=f"correct_{i}", type="secondary"):
-                                    search_logger.log_user_feedback(session_id, i + 1)
+                                    st.info(f"正解ボタンが押されました: 第{i+1}位")
+                                    with st.spinner("Google Sheetsに記録中..."):
+                                        search_logger.log_user_feedback(session_id, i + 1)
                                     st.success(f"第{i+1}位を正解として記録しました！")
                                     st.rerun()
                             
@@ -201,7 +203,9 @@ def search_page():
                     col1, col2, col3 = st.columns([1, 1, 1])
                     with col2:
                         if st.button("❌ 正解なし", type="secondary", use_container_width=True):
-                            search_logger.log_user_feedback(session_id, None)
+                            st.info("「正解なし」ボタンが押されました")
+                            with st.spinner("Google Sheetsに記録中..."):
+                                search_logger.log_user_feedback(session_id, None)
                             st.info("「正解なし」として記録しました。")
                             st.rerun()
                     
@@ -320,6 +324,53 @@ def main():
         st.sidebar.success("✅ Streamlit Secrets 設定済み")
     else:
         st.sidebar.warning("⚠️ Streamlit Secrets 未設定")
+    
+    # Secrets詳細診断ボタン
+    if st.sidebar.button("🔍 Secrets 詳細診断"):
+        with st.sidebar:
+            with st.spinner("診断中..."):
+                diagnostic = search_logger.get_secrets_diagnostic()
+                
+                st.subheader("Secrets 診断結果")
+                
+                # 基本チェック
+                if diagnostic['streamlit_has_secrets']:
+                    st.success("✅ st.secrets 利用可能")
+                else:
+                    st.error("❌ st.secrets 利用不可")
+                
+                if diagnostic['gcp_section_exists']:
+                    st.success("✅ [gcp_service_account] セクション存在")
+                else:
+                    st.error("❌ [gcp_service_account] セクション不在")
+                
+                # 詳細フィールド診断
+                if diagnostic['gcp_section_exists']:
+                    st.subheader("フィールド詳細")
+                    
+                    # Missing fields
+                    if diagnostic['missing_fields']:
+                        st.error(f"❌ 欠如フィールド: {', '.join(diagnostic['missing_fields'])}")
+                    
+                    # Empty fields  
+                    if diagnostic['empty_fields']:
+                        st.warning(f"⚠️ 空フィールド: {', '.join(diagnostic['empty_fields'])}")
+                    
+                    # Present fields
+                    if diagnostic['field_values_safe']:
+                        st.subheader("設定済みフィールド")
+                        for field, value in diagnostic['field_values_safe'].items():
+                            if value != "Empty":
+                                st.text(f"✅ {field}: {value}")
+                
+                # 総合判定
+                st.subheader("総合判定")
+                st.write(diagnostic['diagnostic_message'])
+                
+                # 設定手順へのリンク
+                if not diagnostic['gcp_section_exists'] or diagnostic['missing_fields'] or diagnostic['empty_fields']:
+                    st.error("🔧 設定に問題があります")
+                    st.markdown("**解決方法**: `STREAMLIT_SECRETS_GUIDE.md` を参照してください")
     
     # 接続テストボタン
     if st.sidebar.button("🔗 Google Sheets 接続テスト"):
