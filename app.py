@@ -24,6 +24,7 @@ try:
         get_database_stats,
         check_database_exists
     )
+    from search_logger import search_logger
 except ImportError as e:
     st.error(f"データベースモジュールの読み込みエラー: {e}")
     st.stop()
@@ -57,6 +58,15 @@ st.markdown("""
     padding: 1rem;
     margin-bottom: 1rem;
     background-color: white;
+}
+.feedback-button {
+    margin-top: 1rem;
+}
+.statistics-section {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-top: 2rem;
 }
 .similarity-score {
     font-weight: bold;
@@ -136,22 +146,12 @@ def search_page():
     # 検索インターフェース
     st.markdown('<div class="search-container">', unsafe_allow_html=True)
     
-    col1, col2 = st.columns([3, 1])
+    search_query = st.text_input(
+        "検索クエリを入力してください",
+        placeholder="例: 赤いバッグ、グレーの折り畳み傘..."
+    )
     
-    with col1:
-        search_query = st.text_input(
-            "検索クエリを入力してください",
-            placeholder="例: 赤いバッグ、グレーの折り畳み傘..."
-        )
-    
-    with col2:
-        top_k = st.selectbox(
-            "表示件数",
-            options=[5, 10, 15, 20],
-            index=1
-        )
-    
-    search_button = st.button("🔍 検索", type="primary", use_container_width=True)
+    search_button = st.button("🔍 検索（上位10件表示）", type="primary", use_container_width=True)
     
     st.markdown('</div>', unsafe_allow_html=True)
     
@@ -165,18 +165,26 @@ def search_page():
                 # テキストから特徴量抽出
                 query_vector = extract_text_features(search_query)
                 
-                # 類似画像検索
-                results = search_similar_images(query_vector, top_k)
+                # 類似画像検索（固定10件）
+                results = search_similar_images(query_vector, 10)
                 
                 if results:
-                    st.success(f"✅ {len(results)}件の結果が見つかりました")
+                    # ログに検索を記録
+                    session_id = search_logger.log_search_query(search_query, results)
+                    
+                    # セッションステートに保存
+                    st.session_state['current_search_session'] = session_id
+                    st.session_state['search_results'] = results
+                    st.session_state['search_query'] = search_query
+                    
+                    st.success(f"✅ 上位10件の結果を表示")
                     
                     # 結果表示
                     for i, (similarity, image_id, filename, category, description, file_path) in enumerate(results):
                         with st.container():
                             st.markdown('<div class="result-container">', unsafe_allow_html=True)
                             
-                            col1, col2 = st.columns([1, 2])
+                            col1, col2, col3 = st.columns([1, 2, 1])
                             
                             with col1:
                                 display_image_safely(file_path, width=200)
@@ -188,12 +196,53 @@ def search_page():
                                 st.markdown(f"**ファイル名:** {filename}")
                                 st.markdown(f"**説明:** {description}")
                             
+                            with col3:
+                                # 正解ボタン
+                                if st.button(f"✅ 正解", key=f"correct_{i}", type="secondary"):
+                                    search_logger.log_user_feedback(session_id, i + 1)
+                                    st.success(f"第{i+1}位を正解として記録しました！")
+                                    st.rerun()
+                            
                             st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    # 正解なしボタン
+                    st.markdown("---")
+                    col1, col2, col3 = st.columns([1, 1, 1])
+                    with col2:
+                        if st.button("❌ 正解なし", type="secondary", use_container_width=True):
+                            search_logger.log_user_feedback(session_id, None)
+                            st.info("「正解なし」として記録しました。")
+                            st.rerun()
+                    
                 else:
                     st.warning("⚠️ 検索結果が見つかりませんでした")
                     
             except Exception as e:
                 st.error(f"❌ 検索エラー: {str(e)}")
+    
+    # 検索統計の表示（セッションが存在する場合）
+    if 'current_search_session' in st.session_state:
+        st.markdown("---")
+        st.markdown("### 📊 検索統計")
+        
+        try:
+            stats = search_logger.get_search_statistics()
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("総検索回数", stats['total_searches'])
+            with col2:
+                st.metric("評価済み検索", stats['searches_with_feedback'])
+            with col3:
+                st.metric("正解発見数", stats['correct_answers_found'])
+            with col4:
+                if stats['searches_with_feedback'] > 0:
+                    accuracy = stats['accuracy_rate'] * 100
+                    st.metric("精度", f"{accuracy:.1f}%")
+                else:
+                    st.metric("精度", "0%")
+        except Exception as e:
+            st.error(f"統計取得エラー: {e}")
 
 def gallery_page():
     """全画像表示ページ"""
