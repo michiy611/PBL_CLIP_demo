@@ -122,12 +122,13 @@ def display_image_safely(image_path, caption="", width=None):
                 <div style="color: #999; font-size: 0.8em; margin-top: 5px;">{caption}</div>
             </div>
             """, unsafe_allow_html=True)
-            # デバッグ情報（開発時のみ表示）
-            if st.sidebar.checkbox("デバッグ情報を表示", value=False):
+            # デバッグ情報（セッション状態で管理）
+            if st.session_state.get('debug_mode', False):
                 st.error(f"画像パス: {image_path} → {normalized_path}")
     except Exception as e:
         st.error(f"画像表示エラー: {str(e)}")
-        st.text(f"パス: {image_path}")
+        if st.session_state.get('debug_mode', False):
+            st.text(f"パス: {image_path}")
 
 def search_page():
     """検索ページ"""
@@ -339,6 +340,12 @@ def main():
         ["🔍 画像検索", "🖼️ ギャラリー", "⚙️ セットアップ"],
         index=0
     )
+    
+    # デバッグモード設定
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🐛 デバッグ設定")
+    debug_mode = st.sidebar.checkbox("デバッグ情報を表示", value=False, key="debug_checkbox")
+    st.session_state['debug_mode'] = debug_mode
     
     # 統計情報をサイドバーに表示
     st.sidebar.markdown("---")
