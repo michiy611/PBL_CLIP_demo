@@ -6,6 +6,7 @@ Streamlitを使用したWebインターフェース
 import streamlit as st
 import os
 from PIL import Image
+import time # 強制ログテスト用に追加
 
 # クラウド環境対応のキャッシュ設定
 @st.cache_resource
@@ -200,9 +201,12 @@ def search_page():
                                     print(f"APP_DEBUG: Session ID: {session_id}")
                                     print(f"APP_DEBUG: Current session from state: {st.session_state.get('current_search_session', 'NOT_FOUND')}")
                                     
+                                    # 即座に視覚的フィードバックを表示
+                                    placeholder = st.empty()
+                                    placeholder.info(f"第{i+1}位を正解として記録中...")
+                                    
                                     try:
                                         print(f"APP_DEBUG: About to call log_user_feedback...")
-                                        st.info(f"第{i+1}位を正解として記録中...")
                                         
                                         # 即座にログ記録を実行 - Streamlit Cloud環境に最適化
                                         result = search_logger.log_user_feedback(session_id, i + 1)
@@ -210,28 +214,26 @@ def search_page():
                                         
                                         if result:
                                             print(f"APP_DEBUG: Logging successful, clearing session state")
-                                            st.success(f"✅ 第{i+1}位を正解として記録しました！")
+                                            placeholder.success(f"✅ 第{i+1}位を正解として記録しました！")
                                             
                                             # セッション情報をクリア
-                                            if 'current_search_session' in st.session_state:
-                                                del st.session_state['current_search_session']
-                                            if 'search_results' in st.session_state:
-                                                del st.session_state['search_results']
-                                            if 'search_query' in st.session_state:
-                                                del st.session_state['search_query']
+                                            for key in ['current_search_session', 'search_results', 'search_query']:
+                                                if key in st.session_state:
+                                                    del st.session_state[key]
                                             
-                                            print(f"APP_DEBUG: Session state cleared, triggering rerun")
+                                            print(f"APP_DEBUG: Session state cleared, triggering rerun in 1 second")
+                                            time.sleep(1)  # 成功メッセージを表示する時間
                                             st.rerun()
                                         else:
                                             print(f"APP_DEBUG: Logging failed - result was False")
-                                            st.error("❌ Google Sheetsへの記録に失敗しました。")
+                                            placeholder.error("❌ Google Sheetsへの記録に失敗しました。")
                                         
                                     except Exception as e:
                                         print(f"APP_DEBUG: EXCEPTION in correct button handler: {str(e)}")
                                         print(f"APP_DEBUG: Error type: {type(e).__name__}")
                                         import traceback
                                         print(f"APP_DEBUG: Full traceback: {traceback.format_exc()}")
-                                        st.error(f"❌ 記録処理でエラーが発生しました: {str(e)}")
+                                        placeholder.error(f"❌ 記録処理でエラーが発生しました: {str(e)}")
                             
                             st.markdown('</div>', unsafe_allow_html=True)
                     
@@ -245,9 +247,12 @@ def search_page():
                             print(f"APP_DEBUG: Session ID: {session_id}")
                             print(f"APP_DEBUG: Current session from state: {st.session_state.get('current_search_session', 'NOT_FOUND')}")
                             
+                            # 即座に視覚的フィードバックを表示
+                            placeholder = st.empty()
+                            placeholder.info("「正解なし」として記録中...")
+                            
                             try:
                                 print(f"APP_DEBUG: About to call log_user_feedback with None...")
-                                st.info("「正解なし」として記録中...")
                                 
                                 # 即座にログ記録を実行 - Streamlit Cloud環境に最適化
                                 result = search_logger.log_user_feedback(session_id, None)
@@ -255,28 +260,26 @@ def search_page():
                                 
                                 if result:
                                     print(f"APP_DEBUG: Logging successful, clearing session state")
-                                    st.success("✅ 「正解なし」として記録しました。")
+                                    placeholder.success("✅ 「正解なし」として記録しました。")
                                     
                                     # セッション情報をクリア
-                                    if 'current_search_session' in st.session_state:
-                                        del st.session_state['current_search_session']
-                                    if 'search_results' in st.session_state:
-                                        del st.session_state['search_results']
-                                    if 'search_query' in st.session_state:
-                                        del st.session_state['search_query']
+                                    for key in ['current_search_session', 'search_results', 'search_query']:
+                                        if key in st.session_state:
+                                            del st.session_state[key]
                                     
-                                    print(f"APP_DEBUG: Session state cleared, triggering rerun")
+                                    print(f"APP_DEBUG: Session state cleared, triggering rerun in 1 second")
+                                    time.sleep(1)  # 成功メッセージを表示する時間
                                     st.rerun()
                                 else:
                                     print(f"APP_DEBUG: Logging failed - result was False")
-                                    st.error("❌ Google Sheetsへの記録に失敗しました。")
+                                    placeholder.error("❌ Google Sheetsへの記録に失敗しました。")
                                 
                             except Exception as e:
                                 print(f"APP_DEBUG: EXCEPTION in no answer button handler: {str(e)}")
                                 print(f"APP_DEBUG: Error type: {type(e).__name__}")
                                 import traceback
                                 print(f"APP_DEBUG: Full traceback: {traceback.format_exc()}")
-                                st.error(f"❌ 記録処理でエラーが発生しました: {str(e)}")
+                                placeholder.error(f"❌ 記録処理でエラーが発生しました: {str(e)}")
                             
                             st.markdown('</div>', unsafe_allow_html=True)
                     
@@ -512,6 +515,32 @@ def main():
                 # エラーメッセージ
                 if test_result['error_message']:
                     st.error(f"エラー詳細: {test_result['error_message']}")
+    
+    # 強制ログ書き込みテストボタン（デバッグ用）
+    if st.sidebar.button("🧪 強制ログテスト"):
+        with st.sidebar:
+            with st.spinner("強制ログテスト中..."):
+                # テスト用のセッションデータを作成
+                test_session_id = "test_" + str(int(time.time()))
+                test_results = [
+                    (0.95, "test_id", "test_image.jpg", "テスト", "テスト画像", "/test/path")
+                ]
+                
+                print(f"APP_DEBUG: === FORCE LOG TEST ===")
+                print(f"APP_DEBUG: Test session ID: {test_session_id}")
+                
+                # 検索をログに記録
+                session_id = search_logger.log_search_query("強制テストクエリ", test_results)
+                print(f"APP_DEBUG: Test search logged with session ID: {session_id}")
+                
+                # フィードバックをログに記録
+                result = search_logger.log_user_feedback(session_id, 1)
+                print(f"APP_DEBUG: Test feedback result: {result}")
+                
+                if result:
+                    st.sidebar.success("✅ 強制ログテスト成功")
+                else:
+                    st.sidebar.error("❌ 強制ログテスト失敗")
     
     # ページ切り替え
     if page == "🔍 画像検索":
