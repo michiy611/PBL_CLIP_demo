@@ -232,7 +232,7 @@ def search_page():
         # ▼ 「正解なし」ボタンも同じブロック内で処理
         # --------------------------------------------------
         st.markdown("---")
-        col1, col2, col3 = st.columns([1, 1, 1])
+        col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
         with col2:
             no_answer_key = f"no_answer_{session_id}"
             if st.button("❌ 正解なし", key=no_answer_key, type="secondary", use_container_width=True):
@@ -245,6 +245,30 @@ def search_page():
                     
                     if result:
                         placeholder.success("✅ 「正解なし」として記録しました。")
+                        
+                        # 成功したらセッションをクリアして初期状態に戻す
+                        for key in ['current_search_session', 'search_results', 'search_query']:
+                            if key in st.session_state:
+                                del st.session_state[key]
+                        
+                        # time.sleep(1) # コメントアウト
+                        st.rerun()
+                    else:
+                        placeholder.error("❌ Google Sheetsへの記録に失敗しました。")
+                
+                except Exception as e:
+                    placeholder.error(f"❌ 記録処理でエラーが発生しました: {str(e)}")
+        with col3:
+            if st.button("🆓 フリー検索", key="free_search", type="secondary", use_container_width=True):
+                placeholder = st.empty()
+                placeholder.info("「フリー検索」として記録中...")
+                
+                try:
+                    # ランクをNoneとしてフィードバックを記録
+                    result = search_logger.log_user_feedback(session_id, None) 
+                    
+                    if result:
+                        placeholder.success("✅ 「フリー検索」として記録しました。")
                         
                         # 成功したらセッションをクリアして初期状態に戻す
                         for key in ['current_search_session', 'search_results', 'search_query']:
