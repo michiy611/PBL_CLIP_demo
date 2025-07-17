@@ -88,31 +88,31 @@ def check_setup():
         """)
         st.stop()
 
-# def display_image_safely(image_path, caption="", width=None):
-#     """画像を安全に表示"""
-#     try:
-#         # デバッグ情報の表示（本番環境では削除）
-#         if not os.path.exists(image_path):
-#             # パスの正規化を試行
-#             normalized_path = os.path.normpath(image_path)
-#             if os.path.exists(normalized_path):
-#                 image_path = normalized_path
-#             else:
-#                 st.error(f"❌ 画像ファイルが見つかりません: `{image_path}`")
-#                 st.info(f"🔍 現在のディレクトリ: `{os.getcwd()}`")
-#                 st.info(f"🔍 存在チェック: `{os.path.exists(image_path)}`")
-#                 return
+def display_image_safely(image_path, caption="", width=None):
+    """画像を安全に表示"""
+    try:
+        # デバッグ情報の表示（本番環境では削除）
+        if not os.path.exists(image_path):
+            # パスの正規化を試行
+            normalized_path = os.path.normpath(image_path)
+            if os.path.exists(normalized_path):
+                image_path = normalized_path
+            else:
+                st.error(f"❌ 画像ファイルが見つかりません: `{image_path}`")
+                st.info(f"🔍 現在のディレクトリ: `{os.getcwd()}`")
+                st.info(f"🔍 存在チェック: `{os.path.exists(image_path)}`")
+                return
         
-#         # image = Image.open(image_path)
-#         # 大きな画像のリサイズ（メモリ節約）
-#         # if width and width < 300:
-#             # サムネイル表示の場合はリサイズ
-#             # image.thumbnail((width * 2, width * 2), Image.Resampling.LANCZOS)
-#         st.image(image_path, caption=caption, width=(width * 2, width * 2))
+        image = Image.open(image_path)
+        # 大きな画像のリサイズ（メモリ節約）
+        if width and width < 300:
+            # サムネイル表示の場合はリサイズ
+            image.thumbnail((width * 2, width * 2), Image.Resampling.LANCZOS)
+        st.image(image, caption=caption, width=width)
         
-    # except Exception as e:
-    #     st.error(f"❌ 画像表示エラー: {str(e)}")
-    #     st.info(f"🔍 ファイルパス: `{image_path}`")
+    except Exception as e:
+        st.error(f"❌ 画像表示エラー: {str(e)}")
+        st.info(f"🔍 ファイルパス: `{image_path}`")
 
 def search_page():
     """検索ページ"""
@@ -178,8 +178,7 @@ def search_page():
                             col1, col2 = st.columns([1, 2])
                             
                             with col1:
-                                width=200
-                                st.image(file_path, width=(width * 2, width * 2))
+                                display_image_safely(file_path, width=200)
                             
                             with col2:
                                 st.markdown(f"**順位:** {i+1}")
@@ -229,8 +228,8 @@ def gallery_page():
                     if i + j < len(images):
                         image_id, filename, description, file_path = images[i + j]
                         with cols[j]:
-                            # display_image_safely(file_path, caption=f"{filename}\n{description}")
-                            st.image(file_path, caption=f"{filename}\n{description}")
+                            display_image_safely(file_path, caption=f"{filename}\n{description}")
+            
             st.divider()
     else:
         # 選択されたカテゴリのみ表示
@@ -245,8 +244,7 @@ def gallery_page():
                     if i + j < len(images):
                         image_id, filename, description, file_path = images[i + j]
                         with cols[j]:
-                            # display_image_safely(file_path, caption=f"{filename}\n{description}")
-                            st.image(file_path, caption=f"{filename}\n{description}")
+                            display_image_safely(file_path, caption=f"{filename}\n{description}")
 
 def debug_page():
     """デバッグページ"""
@@ -307,7 +305,7 @@ def debug_page():
         "data/img/スマホ/k22001-スマホ-0001-01.jpg"
     ]
 
-    ## 画像表示テスト
+    ##
     st.image(test_paths[0], caption="カサ", width=200)
     st.image(test_paths[1], caption="バッグ", width=200)
     st.image(test_paths[2], caption="スマホ", width=200)
