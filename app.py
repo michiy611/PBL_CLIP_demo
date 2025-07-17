@@ -305,7 +305,39 @@ def debug_page():
         "data/img/スマホ/k22001-スマホ-0001-01.jpg"
     ]
 
-    ##
+    # データベース内のパス情報をテスト
+    st.subheader("🗄️ データベース内のファイルパス")
+    try:
+        from database_utils import get_all_images_by_category
+        category_data = get_all_images_by_category()
+        
+        if category_data:
+            st.success(f"✅ データベースから {len(category_data)} カテゴリを取得")
+            
+            # 各カテゴリの最初の画像パスを確認
+            for category, images in list(category_data.items())[:3]:  # 最初の3カテゴリ
+                if images:
+                    image_id, filename, description, file_path = images[0]
+                    st.info(f"📁 {category}: `{file_path}`")
+                    
+                    # パスの存在確認
+                    exists = os.path.exists(file_path)
+                    st.write(f"{'✅' if exists else '❌'} ファイル存在: {exists}")
+                    
+                    # 実際に画像表示をテスト
+                    if exists:
+                        try:
+                            st.image(file_path, caption=f"{category}: {filename}", width=150)
+                        except Exception as e:
+                            st.error(f"画像表示エラー: {e}")
+        else:
+            st.error("❌ データベースからデータを取得できませんでした")
+            
+    except Exception as e:
+        st.error(f"❌ データベーステストエラー: {e}")
+    
+    # 手動テスト（既存）
+    st.subheader("🖼️ 手動ファイルパステスト")
     st.image(test_paths[0], caption="カサ", width=200)
     st.image(test_paths[1], caption="バッグ", width=200)
     st.image(test_paths[2], caption="スマホ", width=200)
