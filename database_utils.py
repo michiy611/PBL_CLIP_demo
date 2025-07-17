@@ -44,7 +44,7 @@ def search_similar_images(query_vector: np.ndarray, top_k: int = 5) -> List[Tupl
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # SQLite-vecで類似検索
+    # SQLite-vecで類似検索（正しい構文）
     query_blob = query_vector.astype(np.float32).tobytes()
     
     query = '''
