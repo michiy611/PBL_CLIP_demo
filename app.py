@@ -91,13 +91,28 @@ def check_setup():
 def display_image_safely(image_path, caption="", width=None):
     """画像を安全に表示"""
     try:
-        if os.path.exists(image_path):
-            image = Image.open(image_path)
-            st.image(image, caption=caption, width=width)
-        else:
-            st.error(f"画像ファイルが見つかりません: {image_path}")
+        # デバッグ情報の表示（本番環境では削除）
+        if not os.path.exists(image_path):
+            # パスの正規化を試行
+            normalized_path = os.path.normpath(image_path)
+            if os.path.exists(normalized_path):
+                image_path = normalized_path
+            else:
+                st.error(f"❌ 画像ファイルが見つかりません: `{image_path}`")
+                st.info(f"🔍 現在のディレクトリ: `{os.getcwd()}`")
+                st.info(f"🔍 存在チェック: `{os.path.exists(image_path)}`")
+                return
+        
+        image = Image.open(image_path)
+        # 大きな画像のリサイズ（メモリ節約）
+        if width and width < 300:
+            # サムネイル表示の場合はリサイズ
+            image.thumbnail((width * 2, width * 2), Image.Resampling.LANCZOS)
+        st.image(image, caption=caption, width=width)
+        
     except Exception as e:
-        st.error(f"画像表示エラー: {str(e)}")
+        st.error(f"❌ 画像表示エラー: {str(e)}")
+        st.info(f"🔍 ファイルパス: `{image_path}`")
 
 def search_page():
     """検索ページ"""
@@ -231,6 +246,76 @@ def gallery_page():
                         with cols[j]:
                             display_image_safely(file_path, caption=f"{filename}\n{description}")
 
+def debug_page():
+    """デバッグページ"""
+    st.markdown('<h1 class="main-header">🔧 システムデバッグ</h1>', unsafe_allow_html=True)
+    
+    # 現在のディレクトリ
+    st.subheader("📁 現在のディレクトリ")
+    st.code(f"os.getcwd(): {os.getcwd()}")
+    
+    # プロジェクトルートの確認
+    st.subheader("📋 ルートファイル")
+    try:
+        root_files = os.listdir(".")
+        st.write("ルートディレクトリの内容:", root_files)
+    except Exception as e:
+        st.error(f"ルートディレクトリの読み取りエラー: {e}")
+    
+    # dataディレクトリの確認
+    st.subheader("🗂️ dataディレクトリ")
+    if os.path.exists("data"):
+        try:
+            data_files = os.listdir("data")
+            st.success(f"✅ dataディレクトリが存在します: {data_files}")
+            
+            # data/imgディレクトリの確認
+            if os.path.exists("data/img"):
+                img_dirs = os.listdir("data/img")
+                st.success(f"✅ data/imgディレクトリが存在します: {img_dirs}")
+                
+                # 各カテゴリフォルダの確認
+                for category in img_dirs[:3]:  # 最初の3つのみ
+                    category_path = f"data/img/{category}"
+                    if os.path.isdir(category_path):
+                        files = os.listdir(category_path)
+                        st.info(f"📁 {category}フォルダ: {len(files)}個のファイル")
+                        if files:
+                            st.code(f"最初のファイル: {files[0]}")
+            else:
+                st.error("❌ data/imgディレクトリが存在しません")
+        except Exception as e:
+            st.error(f"dataディレクトリの読み取りエラー: {e}")
+    else:
+        st.error("❌ dataディレクトリが存在しません")
+    
+    # データベースファイルの確認
+    st.subheader("🗄️ データベース")
+    if os.path.exists("image_vectors.db"):
+        size = os.path.getsize("image_vectors.db")
+        st.success(f"✅ image_vectors.db が存在します (サイズ: {size:,} bytes)")
+    else:
+        st.error("❌ image_vectors.db が存在しません")
+    
+    # 特定画像ファイルのテスト
+    st.subheader("🖼️ サンプル画像テスト")
+    test_paths = [
+        "data/img/カサ/k22001-傘-0001-01.jpg",
+        "data/img/バッグ/k22001-バッグ-0001-01.jpg",
+        "data/img/スマホ/k22001-スマホ-0001-01.jpg"
+    ]
+    
+    for path in test_paths:
+        exists = os.path.exists(path)
+        if exists:
+            try:
+                size = os.path.getsize(path)
+                st.success(f"✅ `{path}` (サイズ: {size:,} bytes)")
+            except Exception as e:
+                st.warning(f"⚠️ `{path}` 存在するがサイズ取得エラー: {e}")
+        else:
+            st.error(f"❌ `{path}` が存在しません")
+
 def main():
     """メイン処理"""
     # セットアップ確認
@@ -240,7 +325,7 @@ def main():
     st.sidebar.title("🎯 ナビゲーション")
     page = st.sidebar.radio(
         "ページを選択",
-        ["🔍 画像検索", "🖼️ ギャラリー"],
+        ["🔍 画像検索", "🖼️ ギャラリー", "🔧 デバッグ"],
         index=0
     )
     
@@ -263,6 +348,8 @@ def main():
         search_page()
     elif page == "🖼️ ギャラリー":
         gallery_page()
+    elif page == "🔧 デバッグ":
+        debug_page()
     
     # フッター
     st.markdown("---")
